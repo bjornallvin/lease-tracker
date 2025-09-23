@@ -194,7 +194,7 @@ export interface ChartData {
   preliminaryData: (number | null)[]
   trendData: number[]
   optimalData: number[]
-  projectedData: number[]
+  projectedData: (number | null)[]
   currentDateIndex: number
   selectedDateIndex?: number
   zeroCrossingIndex?: number
@@ -223,7 +223,7 @@ export function generateChartData(
   const preliminaryData: (number | null)[] = []
   const trendData: number[] = []
   const optimalData: number[] = []
-  const projectedData: number[] = []
+  const projectedData: (number | null)[] = []
   let currentDateIndex = -1
   let selectedDateIndex: number | undefined = undefined
   let zeroCrossingIndex: number | undefined = undefined

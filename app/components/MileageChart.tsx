@@ -126,7 +126,7 @@ export default function MileageChart({ data, onDataPointClick, readings, selecte
         borderDash: [3, 3],
         pointRadius: 0,
         tension: 0,
-        spanGaps: false
+        spanGaps: true
       }
     ]
   }
