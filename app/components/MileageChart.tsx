@@ -13,7 +13,9 @@ import {
   ChartOptions,
   TooltipItem
 } from 'chart.js'
+import annotationPlugin from 'chartjs-plugin-annotation'
 import { ChartData } from '@/lib/utils'
+import { format } from 'date-fns'
 
 ChartJS.register(
   CategoryScale,
@@ -22,7 +24,8 @@ ChartJS.register(
   LineElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
+  annotationPlugin
 )
 
 interface MileageChartProps {
@@ -30,6 +33,8 @@ interface MileageChartProps {
 }
 
 export default function MileageChart({ data }: MileageChartProps) {
+  const todayLabel = format(new Date(), 'MMM d, yyyy')
+
   const chartData = {
     labels: data.labels,
     datasets: [
@@ -117,6 +122,37 @@ export default function MileageChart({ data }: MileageChartProps) {
             return label
           }
         }
+      },
+      annotation: {
+        annotations: data.currentDateIndex >= 0 ? {
+          todayLine: {
+            type: 'line',
+            xMin: data.currentDateIndex,
+            xMax: data.currentDateIndex,
+            borderColor: 'rgba(239, 68, 68, 0.7)',
+            borderWidth: 2,
+            borderDash: [6, 6],
+            label: {
+              display: true,
+              content: `Today (${todayLabel})`,
+              position: 'start',
+              backgroundColor: 'rgba(239, 68, 68, 0.9)',
+              color: 'white',
+              font: {
+                size: 11,
+                weight: 'bold'
+              },
+              padding: {
+                top: 4,
+                bottom: 4,
+                left: 8,
+                right: 8
+              },
+              borderRadius: 4,
+              yAdjust: -10
+            }
+          }
+        } : {}
       }
     },
     scales: {
@@ -128,6 +164,10 @@ export default function MileageChart({ data }: MileageChartProps) {
         },
         grid: {
           display: false
+        },
+        ticks: {
+          autoSkip: true,
+          maxTicksLimit: 12
         }
       },
       y: {
@@ -174,6 +214,12 @@ export default function MileageChart({ data }: MileageChartProps) {
         <div className="flex items-center gap-2">
           <div className="w-4 h-0.5 bg-purple-500 border-dashed border-b-2"></div>
           <span className="text-gray-600">Recommended: Path to use full allowance</span>
+        </div>
+      </div>
+      <div className="mt-3 flex items-center justify-center gap-4 text-xs text-gray-500">
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-0.5 bg-red-500 opacity-70"></div>
+          <span>Today&apos;s Position</span>
         </div>
       </div>
     </div>

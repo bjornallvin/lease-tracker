@@ -141,6 +141,7 @@ export interface ChartData {
   trendData: number[]
   optimalData: number[]
   projectedData: number[]
+  currentDateIndex: number
 }
 
 export function generateChartData(
@@ -163,14 +164,21 @@ export function generateChartData(
   const trendData: number[] = []
   const optimalData: number[] = []
   const projectedData: number[] = []
+  let currentDateIndex = -1
 
   // Generate monthly data points
   let currentDate = startDate
   let monthIndex = 0
+  const currentMonthStr = format(today, 'MMM yyyy')
 
   while (isBefore(currentDate, endDate) || format(currentDate, 'yyyy-MM') === format(endDate, 'yyyy-MM')) {
     const monthStr = format(currentDate, 'MMM yyyy')
     labels.push(monthStr)
+
+    // Track the index of the current month
+    if (monthStr === currentMonthStr) {
+      currentDateIndex = monthIndex
+    }
 
     // Find actual reading for this month
     const monthReading = sortedReadings.find(r =>
@@ -239,6 +247,7 @@ export function generateChartData(
     actualData,
     trendData,
     optimalData,
-    projectedData
+    projectedData,
+    currentDateIndex
   }
 }
