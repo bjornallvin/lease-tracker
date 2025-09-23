@@ -1,27 +1,32 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
-import { Plus } from 'lucide-react'
+import { Save } from 'lucide-react'
 import { MileageReading } from '@/lib/types'
 
-interface ReadingFormProps {
-  onSubmit: (date: string, mileage: number, note?: string) => Promise<void>
-  readings?: MileageReading[]
+interface EditReadingFormProps {
+  reading: MileageReading
+  readings: MileageReading[]
+  onSubmit: (id: string, date: string, mileage: number, note?: string) => Promise<void>
+  onCancel: () => void
 }
 
-export default function ReadingForm({ onSubmit, readings = [] }: ReadingFormProps) {
-  const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'))
-  const [mileage, setMileage] = useState('')
-  const [note, setNote] = useState('')
+export default function EditReadingForm({ reading, readings, onSubmit, onCancel }: EditReadingFormProps) {
+  const [date, setDate] = useState(reading.date)
+  const [mileage, setMileage] = useState(reading.mileage.toString())
+  const [note, setNote] = useState(reading.note || '')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [validationError, setValidationError] = useState('')
 
   const validateMileage = (selectedDate: string, mileageNum: number): string | null => {
-    if (readings.length === 0) return null
+    // Filter out the current reading from validation
+    const otherReadings = readings.filter(r => r.id !== reading.id)
+
+    if (otherReadings.length === 0) return null
 
     // Sort readings by date
-    const sortedReadings = [...readings].sort((a, b) =>
+    const sortedReadings = [...otherReadings].sort((a, b) =>
       new Date(a.date).getTime() - new Date(b.date).getTime()
     )
 
@@ -61,12 +66,9 @@ export default function ReadingForm({ onSubmit, readings = [] }: ReadingFormProp
     setIsSubmitting(true)
     setValidationError('')
     try {
-      await onSubmit(date, mileageNum, note || undefined)
-      setMileage('')
-      setNote('')
-      setDate(format(new Date(), 'yyyy-MM-dd'))
+      await onSubmit(reading.id, date, mileageNum, note || undefined)
     } catch (error) {
-      console.error('Error submitting reading:', error)
+      console.error('Error updating reading:', error)
     } finally {
       setIsSubmitting(false)
     }
@@ -92,9 +94,11 @@ export default function ReadingForm({ onSubmit, readings = [] }: ReadingFormProp
 
   // Get min and max suggestions based on date
   const getMinMaxSuggestion = () => {
-    if (readings.length === 0) return { min: 0, max: null }
+    const otherReadings = readings.filter(r => r.id !== reading.id)
 
-    const sortedReadings = [...readings].sort((a, b) =>
+    if (otherReadings.length === 0) return { min: 0, max: null }
+
+    const sortedReadings = [...otherReadings].sort((a, b) =>
       new Date(a.date).getTime() - new Date(b.date).getTime()
     )
 
@@ -117,12 +121,12 @@ export default function ReadingForm({ onSubmit, readings = [] }: ReadingFormProp
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label htmlFor="date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label htmlFor="edit-date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           Date
         </label>
         <input
           type="date"
-          id="date"
+          id="edit-date"
           value={date}
           onChange={(e) => handleDateChange(e.target.value)}
           required
@@ -134,12 +138,12 @@ export default function ReadingForm({ onSubmit, readings = [] }: ReadingFormProp
       </div>
 
       <div>
-        <label htmlFor="mileage" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label htmlFor="edit-mileage" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           Kilometers
         </label>
         <input
           type="number"
-          id="mileage"
+          id="edit-mileage"
           value={mileage}
           onChange={(e) => handleMileageChange(e.target.value)}
           min={0}
@@ -153,12 +157,12 @@ export default function ReadingForm({ onSubmit, readings = [] }: ReadingFormProp
       </div>
 
       <div>
-        <label htmlFor="note" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label htmlFor="edit-note" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           Note (optional)
         </label>
         <input
           type="text"
-          id="note"
+          id="edit-note"
           value={note}
           onChange={(e) => setNote(e.target.value)}
           placeholder="e.g., Oil change, Road trip"
@@ -166,14 +170,23 @@ export default function ReadingForm({ onSubmit, readings = [] }: ReadingFormProp
         />
       </div>
 
-      <button
-        type="submit"
-        disabled={isSubmitting || !mileage || !!validationError}
-        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        <Plus className="h-4 w-4" />
-        {isSubmitting ? 'Adding...' : 'Add Reading'}
-      </button>
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={isSubmitting || !mileage || !!validationError}
+          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          <Save className="h-4 w-4" />
+          {isSubmitting ? 'Saving...' : 'Save Changes'}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
     </form>
   )
 }

@@ -22,13 +22,16 @@ export interface CalculatedStats {
   remainingBudget: number
   currentRate: number
   projectedTotal: number
+  projectedTotalTrend: number
   isOnTrack: boolean
   variance: number
   percentageUsed: number
+  optimalPercentage: number
   daysElapsed: number
   daysRemaining: number
   totalDays: number
   dailyBudget: number
+  remainingDailyBudget: number
   monthlyStats?: MonthlyStats[]
 }
 

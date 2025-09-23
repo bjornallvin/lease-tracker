@@ -87,6 +87,50 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function PUT(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { id, date, mileage, note } = body
+
+    if (!id) {
+      return NextResponse.json(
+        { error: 'Reading ID required' },
+        { status: 400 }
+      )
+    }
+
+    const readings = await redis.get<MileageReading[]>(READINGS_KEY) || []
+    const readingIndex = readings.findIndex(r => r.id === id)
+
+    if (readingIndex === -1) {
+      return NextResponse.json(
+        { error: 'Reading not found' },
+        { status: 404 }
+      )
+    }
+
+    readings[readingIndex] = {
+      ...readings[readingIndex],
+      date,
+      mileage,
+      note: note || '',
+      createdAt: readings[readingIndex].createdAt
+    }
+
+    readings.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
+    await redis.set(READINGS_KEY, readings)
+
+    return NextResponse.json(readings[readingIndex])
+  } catch (error) {
+    console.error('Error updating reading:', error)
+    return NextResponse.json(
+      { error: 'Failed to update reading' },
+      { status: 500 }
+    )
+  }
+}
+
 export async function DELETE(request: NextRequest) {
   try {
     if (!redis) {

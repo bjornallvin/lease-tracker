@@ -6,12 +6,14 @@ import ReadingHistory from '../components/ReadingHistory'
 import Navigation from '../components/Navigation'
 import Modal from '../components/Modal'
 import ReadingForm from '../components/ReadingForm'
+import EditReadingForm from '../components/EditReadingForm'
 
 export default function HistoryPage() {
   const [leaseInfo, setLeaseInfo] = useState<LeaseInfo | null>(null)
   const [readings, setReadings] = useState<MileageReading[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [editingReading, setEditingReading] = useState<MileageReading | null>(null)
 
   useEffect(() => {
     fetchData()
@@ -63,6 +65,28 @@ export default function HistoryPage() {
     }
   }
 
+  const handleEditReading = async (id: string, date: string, mileage: number, note?: string) => {
+    try {
+      const response = await fetch('/api/readings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id, date, mileage, note }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update reading')
+      }
+
+      await fetchData()
+      setEditingReading(null)
+    } catch (error) {
+      console.error('Error updating reading:', error)
+      throw error
+    }
+  }
+
   const handleDeleteReading = async (id: string) => {
     if (!confirm('Are you sure you want to delete this reading?')) {
       return
@@ -86,7 +110,7 @@ export default function HistoryPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Loading...</div>
+        <div className="text-lg text-gray-900 dark:text-white">Loading...</div>
       </div>
     )
   }
@@ -101,8 +125,8 @@ export default function HistoryPage() {
 
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Reading History</h1>
-          <p className="text-gray-600">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Reading History</h1>
+          <p className="text-gray-600 dark:text-gray-400">
             View and manage all your kilometer readings
           </p>
         </div>
@@ -110,6 +134,7 @@ export default function HistoryPage() {
         <ReadingHistory
           readings={readings}
           onDelete={handleDeleteReading}
+          onEdit={setEditingReading}
         />
       </div>
 
@@ -120,8 +145,23 @@ export default function HistoryPage() {
       >
         <ReadingForm
           onSubmit={handleAddReading}
-          currentMileage={currentMileage}
+          readings={readings}
         />
+      </Modal>
+
+      <Modal
+        isOpen={!!editingReading}
+        onClose={() => setEditingReading(null)}
+        title="Edit Kilometer Reading"
+      >
+        {editingReading && (
+          <EditReadingForm
+            reading={editingReading}
+            readings={readings}
+            onSubmit={handleEditReading}
+            onCancel={() => setEditingReading(null)}
+          />
+        )}
       </Modal>
     </>
   )
