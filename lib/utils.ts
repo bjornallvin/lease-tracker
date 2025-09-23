@@ -127,10 +127,118 @@ function findMileageAtDate(readings: MileageReading[], date: Date): number | nul
   return beforeReadings[beforeReadings.length - 1].mileage
 }
 
-export function formatMileage(miles: number): string {
-  return new Intl.NumberFormat('en-US').format(Math.round(miles))
+export function formatMileage(km: number): string {
+  return new Intl.NumberFormat('en-US').format(Math.round(km))
 }
 
 export function formatDate(date: string): string {
   return format(parseISO(date), 'MMM d, yyyy')
+}
+
+export interface ChartData {
+  labels: string[]
+  actualData: (number | null)[]
+  trendData: number[]
+  optimalData: number[]
+  projectedData: number[]
+}
+
+export function generateChartData(
+  readings: MileageReading[],
+  leaseInfo: LeaseInfo
+): ChartData {
+  const startDate = parseISO(leaseInfo.startDate)
+  const endDate = parseISO(leaseInfo.endDate)
+  const today = new Date()
+
+  const sortedReadings = [...readings].sort((a, b) =>
+    new Date(a.date).getTime() - new Date(b.date).getTime()
+  )
+
+  const totalDays = differenceInDays(endDate, startDate)
+  const dailyBudget = leaseInfo.totalLimit / totalDays
+
+  const labels: string[] = []
+  const actualData: (number | null)[] = []
+  const trendData: number[] = []
+  const optimalData: number[] = []
+  const projectedData: number[] = []
+
+  // Generate monthly data points
+  let currentDate = startDate
+  let monthIndex = 0
+
+  while (isBefore(currentDate, endDate) || format(currentDate, 'yyyy-MM') === format(endDate, 'yyyy-MM')) {
+    const monthStr = format(currentDate, 'MMM yyyy')
+    labels.push(monthStr)
+
+    // Find actual reading for this month
+    const monthReading = sortedReadings.find(r =>
+      format(parseISO(r.date), 'MMM yyyy') === monthStr
+    )
+
+    // Calculate remaining kilometers for actual data
+    if (monthReading) {
+      actualData.push(leaseInfo.totalLimit - monthReading.mileage)
+    } else if (isAfter(currentDate, today)) {
+      actualData.push(null)
+    } else {
+      // Interpolate if between readings
+      const prevReading = sortedReadings
+        .filter(r => isBefore(parseISO(r.date), currentDate))
+        .pop()
+      actualData.push(prevReading ? leaseInfo.totalLimit - prevReading.mileage : leaseInfo.totalLimit)
+    }
+
+    // Calculate optimal remaining (linear decrease)
+    const daysFromStart = differenceInDays(currentDate, startDate)
+    const optimalUsed = Math.round(dailyBudget * daysFromStart)
+    optimalData.push(leaseInfo.totalLimit - optimalUsed)
+
+    // Calculate trend line remaining based on current rate
+    if (sortedReadings.length > 0 && !isAfter(currentDate, today)) {
+      const currentMileage = sortedReadings[sortedReadings.length - 1].mileage
+      const daysElapsed = differenceInDays(today, startDate)
+      const currentRate = currentMileage / daysElapsed
+      const trendUsed = Math.round(currentRate * daysFromStart)
+      trendData.push(leaseInfo.totalLimit - trendUsed)
+    } else if (sortedReadings.length > 0) {
+      // Future trend projection
+      const currentMileage = sortedReadings[sortedReadings.length - 1].mileage
+      const daysElapsed = differenceInDays(today, startDate)
+      const currentRate = currentMileage / daysElapsed
+      const trendUsed = Math.round(currentRate * daysFromStart)
+      trendData.push(Math.max(0, leaseInfo.totalLimit - trendUsed))
+    } else {
+      trendData.push(leaseInfo.totalLimit)
+    }
+
+    // Calculate projected remaining from today onwards (optimal path to end)
+    if (isAfter(currentDate, today) && sortedReadings.length > 0) {
+      const currentMileage = sortedReadings[sortedReadings.length - 1].mileage
+      const daysFromToday = differenceInDays(currentDate, today)
+      const remainingDays = differenceInDays(endDate, today)
+      const remainingBudget = leaseInfo.totalLimit - currentMileage
+      const futureRate = remainingBudget / remainingDays
+      const projectedUsed = currentMileage + (futureRate * daysFromToday)
+      projectedData.push(Math.round(leaseInfo.totalLimit - projectedUsed))
+    } else if (!isAfter(currentDate, today) && sortedReadings.length > 0) {
+      // Use actual data up to today
+      const lastReading = sortedReadings[sortedReadings.length - 1]
+      projectedData.push(leaseInfo.totalLimit - lastReading.mileage)
+    } else {
+      projectedData.push(leaseInfo.totalLimit)
+    }
+
+    currentDate = addMonths(currentDate, 1)
+    monthIndex++
+  }
+
+  return {
+    labels,
+    actualData,
+    trendData,
+    optimalData,
+    projectedData
+  }
 }

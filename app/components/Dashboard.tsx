@@ -15,12 +15,12 @@ export default function Dashboard({ stats, totalLimit }: DashboardProps) {
       <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm text-gray-600">Current Mileage</p>
+            <p className="text-sm text-gray-600">Current Kilometers</p>
             <p className="text-2xl font-bold text-gray-900">
-              {formatMileage(stats.currentMileage)}
+              {formatMileage(stats.currentMileage)} km
             </p>
             <p className="text-xs text-gray-500 mt-1">
-              of {formatMileage(totalLimit)} total
+              of {formatMileage(totalLimit)} km total
             </p>
           </div>
           <Gauge className="h-8 w-8 text-blue-500" />
@@ -54,7 +54,7 @@ export default function Dashboard({ stats, totalLimit }: DashboardProps) {
               {stats.currentRate.toFixed(1)}
             </p>
             <p className="text-xs text-gray-500 mt-1">
-              miles/day (budget: {stats.dailyBudget.toFixed(1)})
+              km/day (budget: {stats.dailyBudget.toFixed(1)})
             </p>
           </div>
           {stats.currentRate > stats.dailyBudget ? (

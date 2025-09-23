@@ -1,36 +1,21 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { LeaseInfo, MileageReading, CalculatedStats } from '@/lib/types'
-import { calculateLeaseStats, generateChartData } from '@/lib/utils'
-import Dashboard from './Dashboard'
-import ReadingForm from './ReadingForm'
-import Modal from './Modal'
-import Navigation from './Navigation'
-import dynamic from 'next/dynamic'
+import { LeaseInfo, MileageReading } from '@/lib/types'
+import ReadingHistory from '../components/ReadingHistory'
+import Navigation from '../components/Navigation'
+import Modal from '../components/Modal'
+import ReadingForm from '../components/ReadingForm'
 
-const MileageChart = dynamic(() => import('./MileageChart'), {
-  ssr: false,
-  loading: () => <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200 h-96 flex items-center justify-center">Loading chart...</div>
-})
-
-export default function MileageTracker() {
+export default function HistoryPage() {
   const [leaseInfo, setLeaseInfo] = useState<LeaseInfo | null>(null)
   const [readings, setReadings] = useState<MileageReading[]>([])
-  const [stats, setStats] = useState<CalculatedStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
   useEffect(() => {
     fetchData()
   }, [])
-
-  useEffect(() => {
-    if (leaseInfo && readings) {
-      const calculatedStats = calculateLeaseStats(readings, leaseInfo)
-      setStats(calculatedStats)
-    }
-  }, [leaseInfo, readings])
 
   const fetchData = async () => {
     setLoading(true)
@@ -78,6 +63,26 @@ export default function MileageTracker() {
     }
   }
 
+  const handleDeleteReading = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this reading?')) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/readings?id=${id}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to delete reading')
+      }
+
+      await fetchData()
+    } catch (error) {
+      console.error('Error deleting reading:', error)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -86,13 +91,9 @@ export default function MileageTracker() {
     )
   }
 
-  if (!leaseInfo || !stats) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg text-red-600">Failed to load data</div>
-      </div>
-    )
-  }
+  const currentMileage = readings.length > 0
+    ? Math.max(...readings.map(r => r.mileage))
+    : 0
 
   return (
     <>
@@ -100,16 +101,16 @@ export default function MileageTracker() {
 
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Reading History</h1>
           <p className="text-gray-600">
-            Monitor your vehicle usage and stay within your lease limits
+            View and manage all your kilometer readings
           </p>
         </div>
 
-        <div className="space-y-6">
-          <Dashboard stats={stats} totalLimit={leaseInfo.totalLimit} />
-          <MileageChart data={generateChartData(readings, leaseInfo)} />
-        </div>
+        <ReadingHistory
+          readings={readings}
+          onDelete={handleDeleteReading}
+        />
       </div>
 
       <Modal
@@ -119,7 +120,7 @@ export default function MileageTracker() {
       >
         <ReadingForm
           onSubmit={handleAddReading}
-          currentMileage={stats.currentMileage}
+          currentMileage={currentMileage}
         />
       </Modal>
     </>

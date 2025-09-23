@@ -5,8 +5,8 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Lease Mileage Tracker',
-  description: 'Track your vehicle mileage against your lease limits',
+  title: 'Lease Kilometer Tracker',
+  description: 'Track your vehicle kilometers against your lease limits',
 }
 
 export default function RootLayout({

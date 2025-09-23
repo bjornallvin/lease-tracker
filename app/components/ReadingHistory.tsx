@@ -22,8 +22,8 @@ export default function ReadingHistory({ readings, onDelete }: ReadingHistoryPro
           <thead>
             <tr className="border-b">
               <th className="text-left py-2 text-sm font-medium text-gray-700">Date</th>
-              <th className="text-left py-2 text-sm font-medium text-gray-700">Mileage</th>
-              <th className="text-left py-2 text-sm font-medium text-gray-700">Miles Added</th>
+              <th className="text-left py-2 text-sm font-medium text-gray-700">Kilometers</th>
+              <th className="text-left py-2 text-sm font-medium text-gray-700">KM Added</th>
               <th className="text-left py-2 text-sm font-medium text-gray-700">Note</th>
               <th className="py-2"></th>
             </tr>
