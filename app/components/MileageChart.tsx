@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useRef } from 'react'
 import { Line } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
@@ -11,21 +12,26 @@ import {
   Tooltip,
   Legend,
   ChartOptions,
-  TooltipItem
+  TooltipItem,
+  TimeScale
 } from 'chart.js'
+import 'chartjs-adapter-date-fns'
 import annotationPlugin from 'chartjs-plugin-annotation'
+import zoomPlugin from 'chartjs-plugin-zoom'
 import { ChartData } from '@/lib/utils'
-import { format } from 'date-fns'
+import { format, parseISO } from 'date-fns'
+import { RotateCcw } from 'lucide-react'
 
 ChartJS.register(
-  CategoryScale,
+  TimeScale,
   LinearScale,
   PointElement,
   LineElement,
   Title,
   Tooltip,
   Legend,
-  annotationPlugin
+  annotationPlugin,
+  zoomPlugin
 )
 
 interface MileageChartProps {
@@ -33,10 +39,35 @@ interface MileageChartProps {
   onDataPointClick?: (date: string, mileage: number) => void
   readings?: any[]
   selectedDate?: string
+  viewMode?: 'total' | 'year1' | 'year2' | 'year3'
 }
 
-export default function MileageChart({ data, onDataPointClick, readings, selectedDate }: MileageChartProps) {
+export default function MileageChart({ data, onDataPointClick, readings, selectedDate, viewMode = 'total' }: MileageChartProps) {
   const todayLabel = format(new Date(), 'yyyy-MM-dd')
+  const chartRef = useRef<any>(null)
+  const [isZoomed, setIsZoomed] = useState(false)
+
+  const resetZoom = () => {
+    if (chartRef.current) {
+      chartRef.current.resetZoom()
+      setIsZoomed(false)
+    }
+  }
+
+  // Calculate y-axis range based on year
+  let yMin = 0
+  let yMax = data.totalLimit
+
+  if (viewMode === 'year1') {
+    yMin = 30000
+    yMax = 45000
+  } else if (viewMode === 'year2') {
+    yMin = 15000
+    yMax = 30000
+  } else if (viewMode === 'year3') {
+    yMin = 0
+    yMax = 15000
+  }
 
   // Create arrays for dimmed points based on selected date
   const actualPointColors: string[] = []
@@ -52,7 +83,7 @@ export default function MileageChart({ data, onDataPointClick, readings, selecte
   }
 
   const chartData = {
-    labels: data.labels,
+    labels: data.dates,
     datasets: [
       {
         label: 'Actual Remaining',
@@ -188,11 +219,11 @@ export default function MileageChart({ data, onDataPointClick, readings, selecte
       },
       annotation: {
         annotations: {
-          ...(data.currentDateIndex >= 0 ? {
+          ...(data.currentDateIndex >= 0 && data.dates[data.currentDateIndex] ? {
             todayLine: {
               type: 'line',
-              xMin: data.currentDateIndex,
-              xMax: data.currentDateIndex,
+              xMin: data.dates[data.currentDateIndex],
+              xMax: data.dates[data.currentDateIndex],
               borderColor: 'rgba(239, 68, 68, 0.7)',
               borderWidth: 2,
               borderDash: [6, 6],
@@ -217,11 +248,11 @@ export default function MileageChart({ data, onDataPointClick, readings, selecte
               }
             }
           } : {}),
-          ...(data.selectedDateIndex !== undefined && data.selectedDateIndex !== data.currentDateIndex ? {
+          ...(data.selectedDateIndex !== undefined && data.selectedDateIndex !== data.currentDateIndex && data.dates[data.selectedDateIndex] ? {
             selectedLine: {
               type: 'line',
-              xMin: data.selectedDateIndex,
-              xMax: data.selectedDateIndex,
+              xMin: data.dates[data.selectedDateIndex],
+              xMax: data.dates[data.selectedDateIndex],
               borderColor: 'rgba(59, 130, 246, 0.8)',
               borderWidth: 3,
               borderDash: [0],
@@ -250,8 +281,8 @@ export default function MileageChart({ data, onDataPointClick, readings, selecte
           ...(data.zeroCrossingIndex !== undefined && data.zeroCrossingDate ? {
             zeroLine: {
               type: 'line',
-              xMin: data.zeroCrossingIndex,
-              xMax: data.zeroCrossingIndex,
+              xMin: data.zeroCrossingDate,
+              xMax: data.zeroCrossingDate,
               borderColor: 'rgba(251, 146, 60, 0.8)',
               borderWidth: 2,
               borderDash: [4, 4],
@@ -276,19 +307,120 @@ export default function MileageChart({ data, onDataPointClick, readings, selecte
                 rotation: 0
               }
             }
+          } : {}),
+          ...(data.year1CrossingIndex !== undefined && data.year1CrossingDate ? {
+            year1Line: {
+              type: 'line',
+              xMin: data.year1CrossingDate,
+              xMax: data.year1CrossingDate,
+              borderColor: 'rgba(147, 51, 234, 0.8)',
+              borderWidth: 2,
+              borderDash: [6, 3],
+              label: {
+                display: true,
+                content: `Year 1 out of km: ${data.year1CrossingDate}`,
+                position: 'start',
+                backgroundColor: 'rgba(147, 51, 234, 0.9)',
+                color: 'white',
+                font: {
+                  size: 11,
+                  weight: 'bold'
+                },
+                padding: {
+                  top: 4,
+                  bottom: 4,
+                  left: 8,
+                  right: 8
+                },
+                borderRadius: 4,
+                yAdjust: -90,
+                rotation: 0
+              }
+            }
+          } : {}),
+          ...(data.year2CrossingIndex !== undefined && data.year2CrossingDate ? {
+            year2Line: {
+              type: 'line',
+              xMin: data.year2CrossingDate,
+              xMax: data.year2CrossingDate,
+              borderColor: 'rgba(236, 72, 153, 0.8)',
+              borderWidth: 2,
+              borderDash: [6, 3],
+              label: {
+                display: true,
+                content: `Year 2 out of km: ${data.year2CrossingDate}`,
+                position: 'start',
+                backgroundColor: 'rgba(236, 72, 153, 0.9)',
+                color: 'white',
+                font: {
+                  size: 11,
+                  weight: 'bold'
+                },
+                padding: {
+                  top: 4,
+                  bottom: 4,
+                  left: 8,
+                  right: 8
+                },
+                borderRadius: 4,
+                yAdjust: -120,
+                rotation: 0
+              }
+            }
           } : {})
+        }
+      },
+      zoom: {
+        limits: {
+          x: { min: 'original', max: 'original', minRange: 86400000 * 7 }, // Min range of 1 week
+          y: { min: yMin, max: yMax }
+        },
+        pan: {
+          enabled: true,
+          mode: 'x',
+          onPan: () => {
+            setIsZoomed(true)
+          }
+        },
+        zoom: {
+          wheel: {
+            enabled: true,
+            speed: 0.1
+          },
+          drag: {
+            enabled: true,
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            borderColor: 'rgb(59, 130, 246)',
+            borderWidth: 1
+          },
+          pinch: {
+            enabled: true
+          },
+          mode: 'x',
+          onZoom: () => {
+            setIsZoomed(true)
+          }
         }
       }
     },
     scales: {
       x: {
+        type: 'time',
         display: true,
         title: {
           display: true,
-          text: 'Month'
+          text: 'Date'
         },
         grid: {
           display: false
+        },
+        time: {
+          parser: 'yyyy-MM-dd',
+          displayFormats: {
+            day: 'MMM d',
+            month: 'MMM yyyy'
+          },
+          tooltipFormat: 'MMM dd, yyyy'
         },
         ticks: {
           autoSkip: true,
@@ -301,6 +433,8 @@ export default function MileageChart({ data, onDataPointClick, readings, selecte
           display: true,
           text: 'Remaining Kilometers'
         },
+        min: yMin,
+        max: yMax,
         ticks: {
           callback: function(value) {
             return new Intl.NumberFormat('sv-SE').format(value as number)
@@ -319,9 +453,19 @@ export default function MileageChart({ data, onDataPointClick, readings, selecte
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700 relative">
+      {isZoomed && (
+        <button
+          onClick={resetZoom}
+          className="absolute top-4 right-4 z-10 p-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg flex items-center gap-2 text-sm transition-colors"
+          title="Reset zoom"
+        >
+          <RotateCcw className="h-4 w-4" />
+          Reset Zoom
+        </button>
+      )}
       <div className="h-96">
-        <Line data={chartData} options={options} />
+        <Line ref={chartRef} data={chartData} options={options} />
       </div>
       <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
         <div className="flex items-center gap-2">
@@ -341,10 +485,15 @@ export default function MileageChart({ data, onDataPointClick, readings, selecte
           <span className="text-gray-600 dark:text-gray-400">Recommended: Path to use full allowance</span>
         </div>
       </div>
-      <div className="mt-3 flex items-center justify-center gap-4 text-xs text-gray-500">
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-0.5 bg-red-500 opacity-70"></div>
-          <span className="text-gray-600 dark:text-gray-400">Today&apos;s Position</span>
+      <div className="mt-3 space-y-2">
+        <div className="flex items-center justify-center gap-4 text-xs text-gray-500">
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-0.5 bg-red-500 opacity-70"></div>
+            <span className="text-gray-600 dark:text-gray-400">Today&apos;s Position</span>
+          </div>
+        </div>
+        <div className="text-center text-xs text-gray-500 dark:text-gray-400">
+          <span className="font-medium">Zoom:</span> Scroll or drag to zoom • Pan while zoomed • Click data points to set reference date
         </div>
       </div>
     </div>

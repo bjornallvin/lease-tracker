@@ -82,6 +82,16 @@ export function calculateLeaseStats(
   const percentageUsed = (currentMileage / leaseInfo.totalLimit) * 100
   const optimalPercentage = (budgetedMileage / leaseInfo.totalLimit) * 100
 
+  // Calculate days needed to pause driving to reach optimal line
+  let daysToOptimal = 0
+  if (variance < 0) {
+    // If over budget (negative variance), calculate days needed
+    // The optimal line increases by dailyBudget each day
+    // So we need to wait until: currentMileage = budgetedMileage + (dailyBudget * daysWaiting)
+    // Solving for daysWaiting: daysWaiting = -variance / dailyBudget
+    daysToOptimal = Math.ceil(Math.abs(variance) / dailyBudget)
+  }
+
   const monthlyStats = generateMonthlyStats(sortedReadings, leaseInfo)
 
   return {
@@ -100,6 +110,7 @@ export function calculateLeaseStats(
     totalDays,
     dailyBudget,
     remainingDailyBudget,
+    daysToOptimal,
     monthlyStats
   }
 }
@@ -190,6 +201,7 @@ export function formatDate(date: string): string {
 
 export interface ChartData {
   labels: string[]
+  dates: string[]
   actualData: (number | null)[]
   preliminaryData: (number | null)[]
   trendData: number[]
@@ -199,17 +211,42 @@ export interface ChartData {
   selectedDateIndex?: number
   zeroCrossingIndex?: number
   zeroCrossingDate?: string
+  year1CrossingIndex?: number
+  year1CrossingDate?: string
+  year2CrossingIndex?: number
+  year2CrossingDate?: string
+  viewMode: 'total' | 'year1' | 'year2' | 'year3'
+  yearOffset: number
+  totalLimit: number
 }
 
 export function generateChartData(
   readings: MileageReading[],
   leaseInfo: LeaseInfo,
   selectedDate?: string,
-  includePreliminary: boolean = true
+  includePreliminary: boolean = true,
+  viewMode: 'total' | 'year1' | 'year2' | 'year3' = 'total'
 ): ChartData {
   const startDate = parseISO(leaseInfo.startDate)
   const endDate = parseISO(leaseInfo.endDate)
   const today = new Date()
+
+  // Calculate year boundaries when in year view
+  let viewStartDate = startDate
+  let viewEndDate = endDate
+  let yearOffset = 0 // Which year we're in (0-based)
+
+  if (viewMode !== 'total') {
+    // Extract year number from viewMode (year1 = 0, year2 = 1, year3 = 2)
+    yearOffset = parseInt(viewMode.replace('year', '')) - 1
+    viewStartDate = addDays(startDate, yearOffset * 365)
+    viewEndDate = addDays(viewStartDate, 365)
+
+    // Don't go past lease end
+    if (isAfter(viewEndDate, endDate)) {
+      viewEndDate = endDate
+    }
+  }
 
   const sortedReadings = [...readings].sort((a, b) =>
     new Date(a.date).getTime() - new Date(b.date).getTime()
@@ -219,6 +256,7 @@ export function generateChartData(
   const dailyBudget = leaseInfo.totalLimit / totalDays
 
   const labels: string[] = []
+  const dates: string[] = []
   const actualData: (number | null)[] = []
   const preliminaryData: (number | null)[] = []
   const trendData: number[] = []
@@ -228,29 +266,131 @@ export function generateChartData(
   let selectedDateIndex: number | undefined = undefined
   let zeroCrossingIndex: number | undefined = undefined
   let zeroCrossingDate: string | undefined = undefined
+  let year1CrossingIndex: number | undefined = undefined
+  let year1CrossingDateStr: string | undefined = undefined
+  let year2CrossingIndex: number | undefined = undefined
+  let year2CrossingDateStr: string | undefined = undefined
 
-  // Create data points for each actual reading
+  // Calculate zero-crossing date for trend line first
+  let calculatedZeroCrossingDate: Date | null = null
+  let year1CrossingDate: Date | null = null  // 30,000 km threshold
+  let year2CrossingDate: Date | null = null  // 15,000 km threshold
+
+  if (sortedReadings.length > 0) {
+    const referenceDate = selectedDate ? parseISO(selectedDate) : today
+    const readingsBeforeRef = sortedReadings.filter(r => !isAfter(parseISO(r.date), referenceDate))
+    const referenceReadings = includePreliminary
+      ? readingsBeforeRef
+      : readingsBeforeRef.filter(r => !isAfter(parseISO(r.date), today))
+
+    if (referenceReadings.length > 0) {
+      // Get mileage at reference date (same logic as for trend line)
+      let mileageAtReference = 0
+      let daysElapsedToReference = 0
+
+      const exactReading = sortedReadings.find(r => r.date === format(referenceDate, 'yyyy-MM-dd'))
+
+      if (exactReading) {
+        mileageAtReference = exactReading.mileage
+        daysElapsedToReference = differenceInDays(referenceDate, startDate)
+      } else {
+        const beforeRef = sortedReadings.filter(r => isBefore(parseISO(r.date), referenceDate))
+        const afterRef = sortedReadings.filter(r => isAfter(parseISO(r.date), referenceDate))
+
+        if (beforeRef.length > 0 && afterRef.length > 0) {
+          const prevReading = beforeRef[beforeRef.length - 1]
+          const nextReading = afterRef[0]
+          const prevDate = parseISO(prevReading.date)
+          const nextDate = parseISO(nextReading.date)
+          const totalSpan = differenceInDays(nextDate, prevDate)
+          const currentSpan = differenceInDays(referenceDate, prevDate)
+          const ratio = totalSpan > 0 ? currentSpan / totalSpan : 0
+          mileageAtReference = prevReading.mileage + (nextReading.mileage - prevReading.mileage) * ratio
+          daysElapsedToReference = differenceInDays(referenceDate, startDate)
+        } else if (beforeRef.length > 0) {
+          const lastReading = beforeRef[beforeRef.length - 1]
+          mileageAtReference = lastReading.mileage
+          daysElapsedToReference = differenceInDays(parseISO(lastReading.date), startDate)
+        }
+      }
+
+      const averageRate = daysElapsedToReference > 0 ? mileageAtReference / daysElapsedToReference : 0
+
+      if (averageRate > 0) {
+        // Calculate when trend would reach totalLimit (remaining = 0)
+        const daysToLimit = leaseInfo.totalLimit / averageRate
+        const zeroDate = addDays(startDate, Math.round(daysToLimit))
+
+        // Only use if before lease end
+        if (isBefore(zeroDate, endDate)) {
+          calculatedZeroCrossingDate = zeroDate
+        }
+
+        // Calculate when Year 1's budget (first 15,000 km) would be exhausted
+        // This happens when we've used 15,000 km, leaving 30,000 km remaining
+        const daysToYear1End = 15000 / averageRate
+        const dateYear1End = addDays(startDate, Math.round(daysToYear1End))
+        if (isBefore(dateYear1End, endDate)) {
+          year1CrossingDate = dateYear1End
+        }
+
+        // Calculate when Year 2's budget (next 15,000 km) would be exhausted
+        // This happens when we've used 30,000 km, leaving 15,000 km remaining
+        const daysToYear2End = 30000 / averageRate
+        const dateYear2End = addDays(startDate, Math.round(daysToYear2End))
+        if (isBefore(dateYear2End, endDate)) {
+          year2CrossingDate = dateYear2End
+        }
+      }
+    }
+  }
+
+  // Create data points - use actual readings and add monthly grid for projections
   const dataPoints: Date[] = []
 
-  // Add all actual reading dates
+  // Add all actual reading dates within the view period
   sortedReadings.forEach(reading => {
-    dataPoints.push(parseISO(reading.date))
+    const readingDate = parseISO(reading.date)
+    if (!isBefore(readingDate, viewStartDate) && !isAfter(readingDate, viewEndDate)) {
+      dataPoints.push(readingDate)
+    }
   })
 
-  // Add monthly points for future projections
-  let currentDate = addMonths(startDate, 1)
-  while (isBefore(currentDate, endDate) || format(currentDate, 'yyyy-MM') === format(endDate, 'yyyy-MM')) {
-    // Only add if not too close to an existing reading
-    const hasNearbyReading = sortedReadings.some(r => {
-      const readingDate = parseISO(r.date)
-      return Math.abs(differenceInDays(readingDate, currentDate)) < 15
-    })
+  // Add start and end dates if not present
+  if (!sortedReadings.some(r => r.date === format(viewStartDate, 'yyyy-MM-dd'))) {
+    dataPoints.push(viewStartDate)
+  }
+  if (!sortedReadings.some(r => r.date === format(viewEndDate, 'yyyy-MM-dd'))) {
+    dataPoints.push(viewEndDate)
+  }
 
-    if (!hasNearbyReading && isAfter(currentDate, today)) {
-      dataPoints.push(currentDate)
+  // Add today if not present and within view period
+  if (isAfter(today, viewStartDate) && isBefore(today, viewEndDate)) {
+    const todayStr = format(today, 'yyyy-MM-dd')
+    if (!sortedReadings.some(r => r.date === todayStr)) {
+      dataPoints.push(today)
     }
+  }
 
-    currentDate = addMonths(currentDate, 1)
+  // Add zero-crossing date if calculated and within view period
+  if (calculatedZeroCrossingDate &&
+      !isBefore(calculatedZeroCrossingDate, viewStartDate) &&
+      !isAfter(calculatedZeroCrossingDate, viewEndDate)) {
+    dataPoints.push(calculatedZeroCrossingDate)
+  }
+
+  // Add year 1 crossing date (30,000 km) if calculated and within view period
+  if (year1CrossingDate &&
+      !isBefore(year1CrossingDate, viewStartDate) &&
+      !isAfter(year1CrossingDate, viewEndDate)) {
+    dataPoints.push(year1CrossingDate)
+  }
+
+  // Add year 2 crossing date (15,000 km) if calculated and within view period
+  if (year2CrossingDate &&
+      !isBefore(year2CrossingDate, viewStartDate) &&
+      !isAfter(year2CrossingDate, viewEndDate)) {
+    dataPoints.push(year2CrossingDate)
   }
 
   // Sort all data points
@@ -261,6 +401,7 @@ export function generateChartData(
     const dateStr = format(date, 'yyyy-MM-dd')
     const label = format(date, 'MMM dd, yyyy')
     labels.push(label)
+    dates.push(dateStr)
 
     // Track current date index
     if (Math.abs(differenceInDays(date, today)) < 1) {
@@ -324,16 +465,53 @@ export function generateChartData(
     // Calculate trend line - simple straight line based on average daily rate
     if (sortedReadings.length > 0) {
       // Get the reference point for calculating average rate
-      // Use either selected date or today's actual readings
+      // Use selected date if provided, otherwise use today
+      const referenceDate = selectedDate ? parseISO(selectedDate) : today
+
+      // Filter readings based on reference date
+      const readingsBeforeRef = sortedReadings.filter(r => !isAfter(parseISO(r.date), referenceDate))
+
+      // If preliminary is not included, further filter to exclude future readings
       const referenceReadings = includePreliminary
-        ? sortedReadings.filter(r => !isAfter(parseISO(r.date), selectedDate ? parseISO(selectedDate) : today))
-        : sortedReadings.filter(r => !isAfter(parseISO(r.date), today))
+        ? readingsBeforeRef
+        : readingsBeforeRef.filter(r => !isAfter(parseISO(r.date), today))
 
       if (referenceReadings.length > 0) {
-        // Use the last reading up to reference date
-        const lastReading = referenceReadings[referenceReadings.length - 1]
-        const daysElapsed = differenceInDays(parseISO(lastReading.date), startDate)
-        const averageRate = daysElapsed > 0 ? lastReading.mileage / daysElapsed : 0
+        // Get mileage at reference date (may need interpolation)
+        let mileageAtReference = 0
+        let daysElapsedToReference = 0
+
+        // Check if we have an exact reading at reference date
+        const exactReading = sortedReadings.find(r => r.date === format(referenceDate, 'yyyy-MM-dd'))
+
+        if (exactReading) {
+          mileageAtReference = exactReading.mileage
+          daysElapsedToReference = differenceInDays(referenceDate, startDate)
+        } else {
+          // Need to interpolate
+          const beforeRef = sortedReadings.filter(r => isBefore(parseISO(r.date), referenceDate))
+          const afterRef = sortedReadings.filter(r => isAfter(parseISO(r.date), referenceDate))
+
+          if (beforeRef.length > 0 && afterRef.length > 0) {
+            // Interpolate between readings
+            const prevReading = beforeRef[beforeRef.length - 1]
+            const nextReading = afterRef[0]
+            const prevDate = parseISO(prevReading.date)
+            const nextDate = parseISO(nextReading.date)
+            const totalSpan = differenceInDays(nextDate, prevDate)
+            const currentSpan = differenceInDays(referenceDate, prevDate)
+            const ratio = totalSpan > 0 ? currentSpan / totalSpan : 0
+            mileageAtReference = prevReading.mileage + (nextReading.mileage - prevReading.mileage) * ratio
+            daysElapsedToReference = differenceInDays(referenceDate, startDate)
+          } else if (beforeRef.length > 0) {
+            // Use last reading before reference
+            const lastReading = beforeRef[beforeRef.length - 1]
+            mileageAtReference = lastReading.mileage
+            daysElapsedToReference = differenceInDays(parseISO(lastReading.date), startDate)
+          }
+        }
+
+        const averageRate = daysElapsedToReference > 0 ? mileageAtReference / daysElapsedToReference : 0
 
         // Simple linear projection: rate * days from start
         const trendUsed = Math.round(averageRate * daysFromStart)
@@ -403,66 +581,48 @@ export function generateChartData(
     }
   })
 
-  // Find where trend line crosses zero (runs out of km)
-  // Look through the trend data we just calculated
-  for (let i = 0; i < trendData.length - 1; i++) {
-    // Check if the trend crosses from positive to zero or negative
-    if (trendData[i] > 0 && trendData[i + 1] <= 0) {
-      // Found a crossing point
-      // Interpolate to find exact crossing point
-      const ratio = trendData[i] / (trendData[i] - trendData[i + 1])
+  // Set zero-crossing information based on calculated date
+  if (calculatedZeroCrossingDate) {
+    zeroCrossingDate = format(calculatedZeroCrossingDate, 'yyyy-MM-dd')
 
-      // Always use the current index (i) since that's closer to where it actually crosses
-      // The crossing happens between i and i+1, but visually it's closer to i
-      zeroCrossingIndex = i
-
-      // Calculate the exact date for the label
-      if (i < dataPoints.length - 1) {
-        const date1 = dataPoints[i]
-        const date2 = dataPoints[i + 1]
-        const daysBetween = differenceInDays(date2, date1)
-        const crossingDays = Math.floor(daysBetween * ratio)
-        const crossingDate = addDays(date1, crossingDays)
-        zeroCrossingDate = format(crossingDate, 'yyyy-MM-dd')
-      } else {
-        // Use the label at the crossing point
-        zeroCrossingDate = labels[i]
+    // Find the index of the zero-crossing date in dataPoints
+    for (let i = 0; i < dataPoints.length; i++) {
+      if (format(dataPoints[i], 'yyyy-MM-dd') === zeroCrossingDate) {
+        zeroCrossingIndex = i
+        break
       }
-      break
     }
   }
 
-  // If no crossing found in data points but trend is heading to zero, calculate it
-  if (!zeroCrossingIndex && trendData.length > 0) {
-    const lastTrendValue = trendData[trendData.length - 1]
-    const secondLastTrendValue = trendData.length > 1 ? trendData[trendData.length - 2] : lastTrendValue
+  // Set year 1 crossing information (30,000 km)
+  if (year1CrossingDate) {
+    year1CrossingDateStr = format(year1CrossingDate, 'yyyy-MM-dd')
 
-    // If trend is decreasing and positive, calculate when it would hit zero
-    if (lastTrendValue > 0 && lastTrendValue < secondLastTrendValue) {
-      const lastDate = dataPoints[dataPoints.length - 1]
-      const trendRate = secondLastTrendValue - lastTrendValue // km decrease per period
+    // Find the index of the year1 crossing date in dataPoints
+    for (let i = 0; i < dataPoints.length; i++) {
+      if (format(dataPoints[i], 'yyyy-MM-dd') === year1CrossingDateStr) {
+        year1CrossingIndex = i
+        break
+      }
+    }
+  }
 
-      if (trendRate > 0) {
-        const periodsToZero = lastTrendValue / trendRate
-        const daysPerPeriod = dataPoints.length > 1
-          ? differenceInDays(dataPoints[dataPoints.length - 1], dataPoints[dataPoints.length - 2])
-          : 30 // default to monthly
+  // Set year 2 crossing information (15,000 km)
+  if (year2CrossingDate) {
+    year2CrossingDateStr = format(year2CrossingDate, 'yyyy-MM-dd')
 
-        const daysToZero = Math.floor(periodsToZero * daysPerPeriod)
-        const zeroDate = addDays(lastDate, daysToZero)
-
-        // Only show if before lease end
-        if (isBefore(zeroDate, endDate)) {
-          zeroCrossingDate = format(zeroDate, 'yyyy-MM-dd')
-          // Put indicator at the edge of chart
-          zeroCrossingIndex = dataPoints.length - 1
-        }
+    // Find the index of the year2 crossing date in dataPoints
+    for (let i = 0; i < dataPoints.length; i++) {
+      if (format(dataPoints[i], 'yyyy-MM-dd') === year2CrossingDateStr) {
+        year2CrossingIndex = i
+        break
       }
     }
   }
 
   return {
     labels,
+    dates,
     actualData,
     preliminaryData,
     trendData,
@@ -471,6 +631,13 @@ export function generateChartData(
     currentDateIndex,
     selectedDateIndex,
     zeroCrossingIndex,
-    zeroCrossingDate
+    zeroCrossingDate,
+    year1CrossingIndex,
+    year1CrossingDate: year1CrossingDateStr,
+    year2CrossingIndex,
+    year2CrossingDate: year2CrossingDateStr,
+    viewMode,
+    yearOffset,
+    totalLimit: leaseInfo.totalLimit
   }
 }

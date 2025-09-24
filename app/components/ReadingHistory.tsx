@@ -3,6 +3,7 @@
 import { MileageReading } from '@/lib/types'
 import { formatMileage, formatDate } from '@/lib/utils'
 import { Trash2, Edit } from 'lucide-react'
+import { differenceInDays, parseISO } from 'date-fns'
 
 interface ReadingHistoryProps {
   readings: MileageReading[]
@@ -37,6 +38,8 @@ export default function ReadingHistory({ readings, onDelete, onEdit }: ReadingHi
               <th className="text-left py-2 text-sm font-medium text-gray-700 dark:text-gray-300">Date</th>
               <th className="text-left py-2 text-sm font-medium text-gray-700 dark:text-gray-300">Kilometers</th>
               <th className="text-left py-2 text-sm font-medium text-gray-700 dark:text-gray-300">KM Added</th>
+              <th className="text-left py-2 text-sm font-medium text-gray-700 dark:text-gray-300">Days</th>
+              <th className="text-left py-2 text-sm font-medium text-gray-700 dark:text-gray-300">Avg Rate</th>
               <th className="text-left py-2 text-sm font-medium text-gray-700 dark:text-gray-300">Note</th>
               <th className="py-2"></th>
             </tr>
@@ -46,6 +49,16 @@ export default function ReadingHistory({ readings, onDelete, onEdit }: ReadingHi
               const prevReading = sortedReadings[index + 1]
               const milesAdded = prevReading ? reading.mileage - prevReading.mileage : 0
               const isFuture = new Date(reading.date) > new Date()
+
+              // Calculate days since last reading
+              const daysSinceLast = prevReading
+                ? differenceInDays(parseISO(reading.date), parseISO(prevReading.date))
+                : 0
+
+              // Calculate average rate during this period
+              const avgRate = daysSinceLast > 0
+                ? milesAdded / daysSinceLast
+                : 0
 
               return (
                 <tr key={reading.id} className={`border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 ${isFuture ? 'opacity-70' : ''}`}>
@@ -60,6 +73,12 @@ export default function ReadingHistory({ readings, onDelete, onEdit }: ReadingHi
                     {milesAdded > 0 && (
                       <span className="text-green-600 dark:text-green-400">+{formatMileage(milesAdded)}</span>
                     )}
+                  </td>
+                  <td className="py-3 text-sm text-gray-600 dark:text-gray-400">
+                    {daysSinceLast > 0 ? daysSinceLast : '-'}
+                  </td>
+                  <td className="py-3 text-sm text-gray-600 dark:text-gray-400">
+                    {avgRate > 0 ? `${avgRate.toLocaleString('sv-SE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km/day` : '-'}
                   </td>
                   <td className="py-3 text-sm text-gray-600 dark:text-gray-400">{reading.note}</td>
                   <td className="py-3">

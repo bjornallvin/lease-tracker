@@ -32,6 +32,7 @@ export interface CalculatedStats {
   totalDays: number
   dailyBudget: number
   remainingDailyBudget: number
+  daysToOptimal: number
   monthlyStats?: MonthlyStats[]
 }
 

@@ -49,6 +49,11 @@ export default function Dashboard({ stats, totalLimit, referenceDate }: Dashboar
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               {stats.isOnTrack ? 'Under budget' : 'Over budget'}
             </p>
+            {stats.daysToOptimal > 0 && (
+              <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+                Park for {stats.daysToOptimal} days to reach optimal
+              </p>
+            )}
           </div>
           {stats.isOnTrack ? (
             <CheckCircle className="h-8 w-8 text-green-500" />

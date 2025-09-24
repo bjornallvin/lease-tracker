@@ -23,6 +23,7 @@ export default function MileageTracker() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [includePreliminary, setIncludePreliminary] = useState(true)
+  const [viewMode, setViewMode] = useState<'total' | 'year1' | 'year2' | 'year3'>('total')
 
   useEffect(() => {
     fetchData()
@@ -151,22 +152,69 @@ export default function MileageTracker() {
           <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Kilometers Over Time</h3>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-600 dark:text-gray-400">Use preliminary in calculations</span>
-                <button
-                  onClick={() => setIncludePreliminary(!includePreliminary)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                    includePreliminary ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
-                  }`}
-                  role="switch"
-                  aria-checked={includePreliminary}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      includePreliminary ? 'translate-x-6' : 'translate-x-1'
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">View:</span>
+                  <div className="inline-flex rounded-lg bg-gray-100 dark:bg-gray-700 p-1">
+                    <button
+                      onClick={() => setViewMode('total')}
+                      className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                        viewMode === 'total'
+                          ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm'
+                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                      }`}
+                    >
+                      Total
+                    </button>
+                    <button
+                      onClick={() => setViewMode('year1')}
+                      className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                        viewMode === 'year1'
+                          ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm'
+                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                      }`}
+                    >
+                      Year 1
+                    </button>
+                    <button
+                      onClick={() => setViewMode('year2')}
+                      className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                        viewMode === 'year2'
+                          ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm'
+                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                      }`}
+                    >
+                      Year 2
+                    </button>
+                    <button
+                      onClick={() => setViewMode('year3')}
+                      className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                        viewMode === 'year3'
+                          ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm'
+                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                      }`}
+                    >
+                      Year 3
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Preliminary:</span>
+                  <button
+                    onClick={() => setIncludePreliminary(!includePreliminary)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                      includePreliminary ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
                     }`}
-                  />
-                </button>
+                    role="switch"
+                    aria-checked={includePreliminary}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        includePreliminary ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
               </div>
             </div>
             <MileageChart
@@ -174,11 +222,13 @@ export default function MileageTracker() {
                 readings,  // Always pass all readings to show them on chart
                 leaseInfo,
                 selectedDate || undefined,
-                includePreliminary  // Pass flag to control calculations
+                includePreliminary,  // Pass flag to control calculations
+                viewMode
               )}
               onDataPointClick={handleDataPointClick}
               readings={readings}
               selectedDate={selectedDate || undefined}
+              viewMode={viewMode}
             />
           </div>
         </div>
