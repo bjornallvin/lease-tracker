@@ -44,7 +44,7 @@ export default function Dashboard({ stats, totalLimit, referenceDate }: Dashboar
           <div>
             <p className="text-sm text-gray-600 dark:text-gray-400">Budget Status</p>
             <p className="text-2xl font-bold text-gray-900 dark:text-white">
-              {stats.variance > 0 ? '+' : ''}{formatMileage(Math.abs(stats.variance))}
+              {stats.variance > 0 ? '+' : ''}{formatMileage(Math.abs(stats.variance))} km
             </p>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               {stats.isOnTrack ? 'Under budget' : 'Over budget'}
@@ -92,7 +92,7 @@ export default function Dashboard({ stats, totalLimit, referenceDate }: Dashboar
           <div>
             <p className="text-sm text-gray-600 dark:text-gray-400">Projected Total</p>
             <p className="text-2xl font-bold text-gray-900 dark:text-white">
-              {formatMileage(stats.projectedTotal)}
+              {formatMileage(stats.projectedTotal)} km
             </p>
             <div className="space-y-1 mt-1">
               <p className="text-xs text-gray-500 dark:text-gray-400">

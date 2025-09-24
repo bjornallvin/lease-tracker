@@ -557,10 +557,35 @@ export function generateChartData(
           }
         }
       } else {
-        // Use actual reading at today
-        const actualReadings = sortedReadings.filter(r => !isAfter(parseISO(r.date), today))
-        if (actualReadings.length > 0) {
-          referenceMileage = actualReadings[actualReadings.length - 1].mileage
+        // No selected date - use today as reference
+        // Use the same logic as getCurrentMileage to ensure consistency
+        const todayStr = format(today, 'yyyy-MM-dd')
+        const readingAtToday = sortedReadings.find(r => r.date === todayStr)
+
+        if (readingAtToday) {
+          referenceMileage = readingAtToday.mileage
+        } else {
+          // Interpolate or use last reading before today
+          const beforeToday = sortedReadings.filter(r => !isAfter(parseISO(r.date), today))
+          const afterToday = sortedReadings.filter(r => isAfter(parseISO(r.date), today))
+
+          if (beforeToday.length > 0 && afterToday.length > 0) {
+            // Interpolate between the closest readings
+            const prevReading = beforeToday[beforeToday.length - 1]
+            const nextReading = afterToday[0]
+            const prevDate = parseISO(prevReading.date)
+            const nextDate = parseISO(nextReading.date)
+            const totalSpan = differenceInDays(nextDate, prevDate)
+            const currentSpan = differenceInDays(today, prevDate)
+            const ratio = totalSpan > 0 ? currentSpan / totalSpan : 0
+            referenceMileage = prevReading.mileage + (nextReading.mileage - prevReading.mileage) * ratio
+          } else if (beforeToday.length > 0) {
+            // Use the last reading before today
+            referenceMileage = beforeToday[beforeToday.length - 1].mileage
+          } else if (afterToday.length > 0) {
+            // Fallback: use first future reading (shouldn't happen normally)
+            referenceMileage = afterToday[0].mileage
+          }
         }
       }
 
@@ -571,7 +596,15 @@ export function generateChartData(
         const remainingBudget = leaseInfo.totalLimit - referenceMileage
         const futureRate = remainingDays > 0 ? remainingBudget / remainingDays : 0
         const projectedUsed = referenceMileage + (futureRate * daysFromReference)
-        projectedData.push(Math.round(leaseInfo.totalLimit - projectedUsed))
+        const projectedRemaining = Math.round(leaseInfo.totalLimit - projectedUsed)
+
+        // If this is exactly the reference date, ensure it matches the actual data
+        if (Math.abs(differenceInDays(date, refDateToUse)) < 1) {
+          const actualRemaining = leaseInfo.totalLimit - referenceMileage
+          projectedData.push(Math.round(actualRemaining))
+        } else {
+          projectedData.push(projectedRemaining)
+        }
       } else {
         // Before reference date, don't show recommended path
         projectedData.push(null)

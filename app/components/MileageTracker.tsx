@@ -31,6 +31,20 @@ export default function MileageTracker() {
 
   useEffect(() => {
     if (leaseInfo && readings) {
+      // Auto-select the latest non-preliminary reading on initial load if no date is selected
+      if (!selectedDate && readings.length > 0) {
+        const today = new Date()
+        const nonPreliminaryReadings = readings.filter(r => new Date(r.date) <= today)
+
+        if (nonPreliminaryReadings.length > 0) {
+          const sortedReadings = [...nonPreliminaryReadings].sort((a, b) =>
+            new Date(b.date).getTime() - new Date(a.date).getTime()
+          )
+          setSelectedDate(sortedReadings[0].date)
+          return // Exit early, the selectedDate change will trigger another render
+        }
+      }
+
       // Filter out future readings if not including preliminary
       const filteredReadings = includePreliminary
         ? readings
@@ -199,7 +213,7 @@ export default function MileageTracker() {
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Preliminary:</span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Include Preliminary:</span>
                   <button
                     onClick={() => setIncludePreliminary(!includePreliminary)}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
