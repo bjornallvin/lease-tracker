@@ -8,6 +8,13 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
   title: 'Lease Kilometer Tracker',
   description: 'Track your vehicle kilometers against your lease limits',
+  icons: {
+    icon: [
+      { url: '/favicon.ico' },
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+    ],
+    apple: '/apple-touch-icon.png',
+  },
 }
 
 export default function RootLayout({

@@ -16,7 +16,14 @@ export default function Navigation({ onAddReading }: NavigationProps) {
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center space-x-8">
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white">Lease Tracker</h1>
+            <div className="flex items-center gap-2">
+              <img
+                src="/logo.svg"
+                alt="Lease Tracker"
+                className="h-6 w-auto"
+              />
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Lease Tracker</h1>
+            </div>
             <div className="flex space-x-4">
               <Link
                 href="/"
