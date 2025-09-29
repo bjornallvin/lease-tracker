@@ -3,12 +3,15 @@
 import { useState, useEffect } from 'react'
 import { LeaseInfo, MileageReading, CalculatedStats } from '@/lib/types'
 import { calculateLeaseStats, generateChartData } from '@/lib/utils'
+import { createAuthHeaders } from '@/lib/auth'
 import { format, parseISO } from 'date-fns'
 import Dashboard from './Dashboard'
 import ReadingForm from './ReadingForm'
 import Modal from './Modal'
 import Navigation from './Navigation'
+import LoginForm from './LoginForm'
 import dynamic from 'next/dynamic'
+import { useAuth } from '../contexts/AuthContext'
 
 const MileageChart = dynamic(() => import('./MileageChart'), {
   ssr: false,
@@ -21,9 +24,11 @@ export default function MileageTracker() {
   const [stats, setStats] = useState<CalculatedStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [includePreliminary, setIncludePreliminary] = useState(true)
   const [viewMode, setViewMode] = useState<'total' | 'year1' | 'year2' | 'year3'>('total')
+  const { isAuthenticated, token, isLoading: authLoading } = useAuth()
 
   useEffect(() => {
     fetchData()
@@ -80,16 +85,24 @@ export default function MileageTracker() {
   }
 
   const handleAddReading = async (date: string, mileage: number, note?: string) => {
+    if (!isAuthenticated || !token) {
+      throw new Error('Authentication required')
+    }
+
     try {
       const response = await fetch('/api/readings', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...createAuthHeaders(token),
         },
         body: JSON.stringify({ date, mileage, note }),
       })
 
       if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Authentication expired. Please sign in again.')
+        }
         throw new Error('Failed to add reading')
       }
 
@@ -98,6 +111,14 @@ export default function MileageTracker() {
     } catch (error) {
       console.error('Error adding reading:', error)
       throw error
+    }
+  }
+
+  const handleAddReadingClick = () => {
+    if (!isAuthenticated) {
+      setIsLoginModalOpen(true)
+    } else {
+      setIsModalOpen(true)
     }
   }
 
@@ -135,11 +156,11 @@ export default function MileageTracker() {
 
   return (
     <>
-      <Navigation onAddReading={() => setIsModalOpen(true)} />
+      <Navigation onAddReading={handleAddReadingClick} />
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Dashboard</h1>
+      <div className="max-w-7xl mx-auto px-4 py-4 md:py-8">
+        <div className="mb-4 md:mb-8">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white mb-2">Dashboard</h1>
           <p className="text-gray-600 dark:text-gray-400">
             Monitor your vehicle usage and stay within your lease limits
           </p>
@@ -163,7 +184,7 @@ export default function MileageTracker() {
         <div className="space-y-6">
           <Dashboard stats={stats} totalLimit={leaseInfo.totalLimit} referenceDate={selectedDate || undefined} />
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="hidden md:block bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Kilometers Over Time</h3>
               <div className="flex items-center space-x-4">
@@ -257,6 +278,14 @@ export default function MileageTracker() {
           onSubmit={handleAddReading}
           readings={readings}
         />
+      </Modal>
+
+      <Modal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+        title="Admin Sign In"
+      >
+        <LoginForm onClose={() => setIsLoginModalOpen(false)} />
       </Modal>
 
     </>
