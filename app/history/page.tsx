@@ -48,7 +48,7 @@ export default function HistoryPage() {
     }
   }
 
-  const handleAddReading = async (date: string, mileage: number, note?: string) => {
+  const handleAddReading = async (date: string, mileage: number, note?: string, time?: string) => {
     if (!isAuthenticated || !token) {
       throw new Error('Authentication required')
     }
@@ -60,7 +60,7 @@ export default function HistoryPage() {
           'Content-Type': 'application/json',
           ...createAuthHeaders(token),
         },
-        body: JSON.stringify({ date, mileage, note }),
+        body: JSON.stringify({ date, mileage, note, time }),
       })
 
       if (!response.ok) {
@@ -78,7 +78,7 @@ export default function HistoryPage() {
     }
   }
 
-  const handleEditReading = async (id: string, date: string, mileage: number, note?: string) => {
+  const handleEditReading = async (id: string, date: string, mileage: number, note?: string, time?: string) => {
     if (!isAuthenticated || !token) {
       throw new Error('Authentication required')
     }
@@ -90,7 +90,7 @@ export default function HistoryPage() {
           'Content-Type': 'application/json',
           ...createAuthHeaders(token),
         },
-        body: JSON.stringify({ id, date, mileage, note }),
+        body: JSON.stringify({ id, date, mileage, note, time }),
       })
 
       if (!response.ok) {

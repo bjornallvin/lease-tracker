@@ -4,49 +4,60 @@ import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { Save } from 'lucide-react'
 import { MileageReading } from '@/lib/types'
+import { isReadingInFuture, compareReadings, getReadingDateTime } from '@/lib/utils'
 
 interface EditReadingFormProps {
   reading: MileageReading
   readings: MileageReading[]
-  onSubmit: (id: string, date: string, mileage: number, note?: string) => Promise<void>
+  onSubmit: (id: string, date: string, mileage: number, note?: string, time?: string) => Promise<void>
   onCancel: () => void
 }
 
 export default function EditReadingForm({ reading, readings, onSubmit, onCancel }: EditReadingFormProps) {
   const [date, setDate] = useState(reading.date)
+  const [time, setTime] = useState(reading.time || '')
   const [mileage, setMileage] = useState(reading.mileage.toString())
   const [note, setNote] = useState(reading.note || '')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [validationError, setValidationError] = useState('')
 
-  const validateMileage = (selectedDate: string, mileageNum: number): string | null => {
+  const validateMileage = (selectedDate: string, mileageNum: number, selectedTime?: string): string | null => {
     // Filter out the current reading from validation
     const otherReadings = readings.filter(r => r.id !== reading.id)
 
     if (otherReadings.length === 0) return null
 
-    // Sort readings by date
-    const sortedReadings = [...otherReadings].sort((a, b) =>
-      new Date(a.date).getTime() - new Date(b.date).getTime()
+    // Sort readings by date and time
+    const sortedReadings = [...otherReadings].sort(compareReadings)
+
+    // Create datetime for current reading
+    const currentDateTime = getReadingDateTime(selectedDate, selectedTime)
+
+    // Find readings before and after the current datetime
+    const readingsBefore = sortedReadings.filter(r =>
+      getReadingDateTime(r.date, r.time).getTime() < currentDateTime.getTime()
+    )
+    const readingsAfter = sortedReadings.filter(r =>
+      getReadingDateTime(r.date, r.time).getTime() > currentDateTime.getTime()
     )
 
-    // Find readings before and after the selected date
-    const readingsBefore = sortedReadings.filter(r => r.date < selectedDate)
-    const readingsAfter = sortedReadings.filter(r => r.date > selectedDate)
-
-    // Check if mileage is greater than any reading before this date
+    // Check if mileage is greater than any reading before this datetime
     if (readingsBefore.length > 0) {
       const maxBefore = Math.max(...readingsBefore.map(r => r.mileage))
       if (mileageNum < maxBefore) {
-        return `Kilometers must be at least ${maxBefore} (reading on ${readingsBefore.find(r => r.mileage === maxBefore)?.date})`
+        const maxReading = readingsBefore.find(r => r.mileage === maxBefore)
+        const timeStr = maxReading?.time ? ` ${maxReading.time}` : ''
+        return `Kilometers must be at least ${maxBefore} (reading on ${maxReading?.date}${timeStr})`
       }
     }
 
-    // Check if mileage is less than any reading after this date
+    // Check if mileage is less than any reading after this datetime
     if (readingsAfter.length > 0) {
       const minAfter = Math.min(...readingsAfter.map(r => r.mileage))
       if (mileageNum > minAfter) {
-        return `Kilometers must be at most ${minAfter} (reading on ${readingsAfter.find(r => r.mileage === minAfter)?.date})`
+        const minReading = readingsAfter.find(r => r.mileage === minAfter)
+        const timeStr = minReading?.time ? ` ${minReading.time}` : ''
+        return `Kilometers must be at most ${minAfter} (reading on ${minReading?.date}${timeStr})`
       }
     }
 
@@ -57,7 +68,7 @@ export default function EditReadingForm({ reading, readings, onSubmit, onCancel 
     e.preventDefault()
     const mileageNum = parseInt(mileage)
 
-    const error = validateMileage(date, mileageNum)
+    const error = validateMileage(date, mileageNum, time)
     if (error) {
       setValidationError(error)
       return
@@ -66,7 +77,7 @@ export default function EditReadingForm({ reading, readings, onSubmit, onCancel 
     setIsSubmitting(true)
     setValidationError('')
     try {
-      await onSubmit(reading.id, date, mileageNum, note || undefined)
+      await onSubmit(reading.id, date, mileageNum, note || undefined, time || undefined)
     } catch (error) {
       console.error('Error updating reading:', error)
     } finally {
@@ -78,7 +89,7 @@ export default function EditReadingForm({ reading, readings, onSubmit, onCancel 
     setDate(newDate)
     setValidationError('')
     if (mileage) {
-      const error = validateMileage(newDate, parseInt(mileage))
+      const error = validateMileage(newDate, parseInt(mileage), time)
       if (error) setValidationError(error)
     }
   }
@@ -87,23 +98,39 @@ export default function EditReadingForm({ reading, readings, onSubmit, onCancel 
     setMileage(newMileage)
     setValidationError('')
     if (newMileage) {
-      const error = validateMileage(date, parseInt(newMileage))
+      const error = validateMileage(date, parseInt(newMileage), time)
       if (error) setValidationError(error)
     }
   }
 
-  // Get min and max suggestions based on date
+  const handleTimeChange = (newTime: string) => {
+    setTime(newTime)
+    setValidationError('')
+    if (mileage) {
+      const error = validateMileage(date, parseInt(mileage), newTime)
+      if (error) setValidationError(error)
+    }
+  }
+
+  // Get min and max suggestions based on date and time
   const getMinMaxSuggestion = () => {
     const otherReadings = readings.filter(r => r.id !== reading.id)
 
     if (otherReadings.length === 0) return { min: 0, max: null }
 
-    const sortedReadings = [...otherReadings].sort((a, b) =>
-      new Date(a.date).getTime() - new Date(b.date).getTime()
-    )
+    // Sort readings by date and time
+    const sortedReadings = [...otherReadings].sort(compareReadings)
 
-    const readingsBefore = sortedReadings.filter(r => r.date < date)
-    const readingsAfter = sortedReadings.filter(r => r.date > date)
+    // Create datetime for current reading
+    const currentDateTime = getReadingDateTime(date, time)
+
+    // Find readings before and after the current datetime
+    const readingsBefore = sortedReadings.filter(r =>
+      getReadingDateTime(r.date, r.time).getTime() < currentDateTime.getTime()
+    )
+    const readingsAfter = sortedReadings.filter(r =>
+      getReadingDateTime(r.date, r.time).getTime() > currentDateTime.getTime()
+    )
 
     const min = readingsBefore.length > 0
       ? Math.max(...readingsBefore.map(r => r.mileage))
@@ -132,9 +159,22 @@ export default function EditReadingForm({ reading, readings, onSubmit, onCancel 
           required
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
         />
-        {date && new Date(date) > new Date() && (
+        {date && isReadingInFuture(date, time) && (
           <p className="mt-1 text-sm text-amber-600 dark:text-amber-400">This is a preliminary future reading</p>
         )}
+      </div>
+
+      <div>
+        <label htmlFor="edit-time" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          Time (optional)
+        </label>
+        <input
+          type="time"
+          id="edit-time"
+          value={time}
+          onChange={(e) => handleTimeChange(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+        />
       </div>
 
       <div>

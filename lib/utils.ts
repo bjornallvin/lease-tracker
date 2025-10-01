@@ -674,3 +674,59 @@ export function generateChartData(
     totalLimit: leaseInfo.totalLimit
   }
 }
+
+export function formatTime(time?: string): string {
+  if (!time) return ''
+
+  // Ensure we only show hours and minutes (24-hour format)
+  const [hours, minutes] = time.split(':')
+  return `${hours}:${minutes}`
+}
+
+export function isReadingInFuture(date: string, time?: string): boolean {
+  const now = new Date()
+  const readingDate = parseISO(date)
+
+  // If no time provided, just compare dates
+  if (!time) {
+    return readingDate > now
+  }
+
+  // Parse time and create full datetime
+  const [hours, minutes] = time.split(':').map(Number)
+  const readingDateTime = new Date(readingDate)
+  readingDateTime.setHours(hours, minutes, 0, 0)
+
+  return readingDateTime > now
+}
+
+export function getReadingDateTime(date: string, time?: string): Date {
+  const readingDate = parseISO(date)
+
+  if (!time) {
+    // If no time, use end of day for comparison purposes
+    readingDate.setHours(23, 59, 59, 999)
+    return readingDate
+  }
+
+  const [hours, minutes] = time.split(':').map(Number)
+  readingDate.setHours(hours, minutes, 0, 0)
+  return readingDate
+}
+
+export function compareReadings(a: { date: string; time?: string }, b: { date: string; time?: string }): number {
+  const dateTimeA = getReadingDateTime(a.date, a.time)
+  const dateTimeB = getReadingDateTime(b.date, b.time)
+  return dateTimeA.getTime() - dateTimeB.getTime()
+}
+
+export function getTimeDifferenceInDays(fromDate: string, fromTime: string | undefined, toDate: string, toTime: string | undefined): number {
+  const fromDateTime = getReadingDateTime(fromDate, fromTime)
+  const toDateTime = getReadingDateTime(toDate, toTime)
+
+  // Calculate difference in milliseconds and convert to days (including fractional days)
+  const diffMs = toDateTime.getTime() - fromDateTime.getTime()
+  const diffDays = diffMs / (1000 * 60 * 60 * 24) // Convert ms to days
+
+  return diffDays
+}

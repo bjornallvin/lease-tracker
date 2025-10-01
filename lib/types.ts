@@ -11,6 +11,7 @@ export interface LeaseInfo {
 export interface MileageReading {
   id: string
   date: string
+  time?: string
   mileage: number
   note?: string
   createdAt: string

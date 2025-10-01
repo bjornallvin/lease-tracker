@@ -84,7 +84,7 @@ export default function MileageTracker() {
     }
   }
 
-  const handleAddReading = async (date: string, mileage: number, note?: string) => {
+  const handleAddReading = async (date: string, mileage: number, note?: string, time?: string) => {
     if (!isAuthenticated || !token) {
       throw new Error('Authentication required')
     }
@@ -96,7 +96,7 @@ export default function MileageTracker() {
           'Content-Type': 'application/json',
           ...createAuthHeaders(token),
         },
-        body: JSON.stringify({ date, mileage, note }),
+        body: JSON.stringify({ date, mileage, note, time }),
       })
 
       if (!response.ok) {

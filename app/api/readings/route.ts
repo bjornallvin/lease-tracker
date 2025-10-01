@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { redis, READINGS_KEY } from '@/lib/redis'
 import { MileageReading } from '@/lib/types'
 import { verifyAuth } from '@/lib/auth'
+import { compareReadings } from '@/lib/utils'
 
 export async function GET() {
   try {
@@ -36,6 +37,9 @@ export async function GET() {
       readings = defaultReadings
     }
 
+    // Ensure readings are sorted by date and time
+    readings.sort(compareReadings)
+
     return NextResponse.json(readings)
   } catch (error) {
     console.error('Error fetching readings:', error)
@@ -68,6 +72,7 @@ export async function POST(request: NextRequest) {
     const newReading: MileageReading = {
       id: Date.now().toString(),
       date: body.date,
+      time: body.time || undefined,
       mileage: body.mileage,
       note: body.note || '',
       createdAt: new Date().toISOString()
@@ -75,14 +80,21 @@ export async function POST(request: NextRequest) {
 
     const readings = await redis.get<MileageReading[]>(READINGS_KEY) || []
 
-    const existingIndex = readings.findIndex(r => r.date === newReading.date)
+    // Check for exact duplicate (same date AND time)
+    // Note: undefined time should only match undefined time
+    const existingIndex = readings.findIndex(r =>
+      r.date === newReading.date &&
+      ((r.time || '') === (newReading.time || ''))
+    )
     if (existingIndex >= 0) {
+      // Replace exact duplicate
       readings[existingIndex] = newReading
     } else {
+      // Add new reading (multiple readings per date are allowed)
       readings.push(newReading)
     }
 
-    readings.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    readings.sort(compareReadings)
 
     await redis.set(READINGS_KEY, readings)
 
@@ -107,7 +119,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { id, date, mileage, note } = body
+    const { id, date, time, mileage, note } = body
 
     if (!id) {
       return NextResponse.json(
@@ -129,12 +141,13 @@ export async function PUT(request: NextRequest) {
     readings[readingIndex] = {
       ...readings[readingIndex],
       date,
+      time: time || undefined,
       mileage,
       note: note || '',
       createdAt: readings[readingIndex].createdAt
     }
 
-    readings.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    readings.sort(compareReadings)
 
     await redis.set(READINGS_KEY, readings)
 

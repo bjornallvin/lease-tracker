@@ -1,7 +1,7 @@
 'use client'
 
 import { MileageReading } from '@/lib/types'
-import { formatMileage, formatDate } from '@/lib/utils'
+import { formatMileage, formatDate, formatTime, isReadingInFuture, compareReadings, getTimeDifferenceInDays } from '@/lib/utils'
 import { Trash2, Edit } from 'lucide-react'
 import { differenceInDays, parseISO } from 'date-fns'
 
@@ -13,9 +13,7 @@ interface ReadingHistoryProps {
 }
 
 export default function ReadingHistory({ readings, onDelete, onEdit, isAuthenticated = false }: ReadingHistoryProps) {
-  const sortedReadings = [...readings].sort((a, b) =>
-    new Date(b.date).getTime() - new Date(a.date).getTime()
-  )
+  const sortedReadings = [...readings].sort((a, b) => -compareReadings(a, b))
 
   if (readings.length === 0) {
     return (
@@ -51,22 +49,34 @@ export default function ReadingHistory({ readings, onDelete, onEdit, isAuthentic
             {sortedReadings.map((reading, index) => {
               const prevReading = sortedReadings[index + 1]
               const milesAdded = prevReading ? reading.mileage - prevReading.mileage : 0
-              const isFuture = new Date(reading.date) > new Date()
+              const isFuture = isReadingInFuture(reading.date, reading.time)
 
-              // Calculate days since last reading
+              // Calculate precise time difference including hours
+              const timeDiffInDays = prevReading
+                ? getTimeDifferenceInDays(prevReading.date, prevReading.time, reading.date, reading.time)
+                : 0
+
+              // For display purposes, also calculate integer days for the "Days" column
               const daysSinceLast = prevReading
                 ? differenceInDays(parseISO(reading.date), parseISO(prevReading.date))
                 : 0
 
-              // Calculate average rate during this period
-              const avgRate = daysSinceLast > 0
-                ? milesAdded / daysSinceLast
+              // Calculate average rate using precise time difference
+              const avgRate = timeDiffInDays > 0
+                ? milesAdded / timeDiffInDays
                 : 0
 
               return (
                 <tr key={reading.id} className={`border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 ${isFuture ? 'opacity-70' : ''}`}>
                   <td className="py-3 text-sm text-gray-900 dark:text-gray-100">
-                    {formatDate(reading.date)}
+                    <div>
+                      {formatDate(reading.date)}
+                      {reading.time && (
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          {formatTime(reading.time)}
+                        </div>
+                      )}
+                    </div>
                     {isFuture && (
                       <span className="ml-2 text-xs text-amber-600 dark:text-amber-400">(Preliminary)</span>
                     )}
@@ -122,25 +132,37 @@ export default function ReadingHistory({ readings, onDelete, onEdit, isAuthentic
         {sortedReadings.map((reading, index) => {
           const prevReading = sortedReadings[index + 1]
           const milesAdded = prevReading ? reading.mileage - prevReading.mileage : 0
-          const isFuture = new Date(reading.date) > new Date()
+          const isFuture = isReadingInFuture(reading.date, reading.time)
 
-          // Calculate days since last reading
+          // Calculate precise time difference including hours
+          const timeDiffInDays = prevReading
+            ? getTimeDifferenceInDays(prevReading.date, prevReading.time, reading.date, reading.time)
+            : 0
+
+          // For display purposes, also calculate integer days for the "Days" column
           const daysSinceLast = prevReading
             ? differenceInDays(parseISO(reading.date), parseISO(prevReading.date))
             : 0
 
-          // Calculate average rate during this period
-          const avgRate = daysSinceLast > 0
-            ? milesAdded / daysSinceLast
+          // Calculate average rate using precise time difference
+          const avgRate = timeDiffInDays > 0
+            ? milesAdded / timeDiffInDays
             : 0
 
           return (
             <div key={reading.id} className={`bg-gray-50 dark:bg-gray-700 rounded-lg p-4 ${isFuture ? 'opacity-70' : ''}`}>
               <div className="flex items-center justify-between mb-2">
                 <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                  {formatDate(reading.date)}
+                  <div>
+                    {formatDate(reading.date)}
+                    {reading.time && (
+                      <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+                        {formatTime(reading.time)}
+                      </span>
+                    )}
+                  </div>
                   {isFuture && (
-                    <span className="ml-2 text-xs text-amber-600 dark:text-amber-400">(Preliminary)</span>
+                    <span className="text-xs text-amber-600 dark:text-amber-400">(Preliminary)</span>
                   )}
                 </div>
                 {isAuthenticated && (
