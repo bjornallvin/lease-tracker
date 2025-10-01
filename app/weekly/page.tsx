@@ -22,6 +22,7 @@ import Navigation from '../components/Navigation'
 import Modal from '../components/Modal'
 import ReadingForm from '../components/ReadingForm'
 import LoginForm from '../components/LoginForm'
+import WeeklyChart from '../components/WeeklyChart'
 import { ChevronLeft, ChevronRight, Calendar, TrendingUp, TrendingDown } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -38,6 +39,14 @@ interface WeeklyStats {
   isOnTrack: boolean
 }
 
+interface DailyUsage {
+  date: Date
+  usage: number
+  dayName: string
+  isToday: boolean
+  isFuture: boolean
+}
+
 export default function WeeklyPage() {
   const [leaseInfo, setLeaseInfo] = useState<LeaseInfo | null>(null)
   const [readings, setReadings] = useState<MileageReading[]>([])
@@ -47,6 +56,7 @@ export default function WeeklyPage() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
   const [currentWeek, setCurrentWeek] = useState(new Date())
   const [weeklyStats, setWeeklyStats] = useState<WeeklyStats | null>(null)
+  const [dailyUsage, setDailyUsage] = useState<DailyUsage[]>([])
   const { isAuthenticated, token, isLoading: authLoading } = useAuth()
 
   useEffect(() => {
@@ -58,8 +68,15 @@ export default function WeeklyPage() {
       const calculatedStats = calculateLeaseStats(readings, leaseInfo)
       setStats(calculatedStats)
 
-      // Calculate weekly stats using recommended rate
-      const weekly = calculateWeeklyStats(readings, leaseInfo, currentWeek, calculatedStats)
+      // Calculate daily usage for the chart first
+      const leaseStart = parseISO(leaseInfo.startDate)
+      const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 })
+      const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 })
+      const daily = calculateDailyUsage(readings, weekStart, weekEnd, leaseStart)
+      setDailyUsage(daily)
+
+      // Calculate weekly stats using actual daily usage sum
+      const weekly = calculateWeeklyStats(readings, leaseInfo, currentWeek, calculatedStats, daily)
       setWeeklyStats(weekly)
     }
   }, [leaseInfo, readings, currentWeek])
@@ -92,7 +109,8 @@ export default function WeeklyPage() {
     readings: MileageReading[],
     leaseInfo: LeaseInfo,
     weekDate: Date,
-    stats?: CalculatedStats
+    stats?: CalculatedStats,
+    dailyUsageData?: DailyUsage[]
   ): WeeklyStats => {
     const weekStart = startOfWeek(weekDate, { weekStartsOn: 1 }) // Monday
     const weekEnd = endOfWeek(weekDate, { weekStartsOn: 1 }) // Sunday
@@ -110,20 +128,23 @@ export default function WeeklyPage() {
     const dailyBudget = stats?.remainingDailyBudget || optimalDailyBudget
     const weeklyBudget = dailyBudget * 7
 
-    // Find readings at start and end of week
-    const sortedReadings = [...readings].sort((a, b) =>
-      new Date(a.date).getTime() - new Date(b.date).getTime()
-    )
+    // Calculate actual usage from daily data if available
+    let usedThisWeek: number
+    if (dailyUsageData && dailyUsageData.length > 0) {
+      // Sum up actual daily usage (more accurate than interpolation)
+      usedThisWeek = dailyUsageData.reduce((sum, day) => sum + (day.isFuture ? 0 : day.usage), 0)
+    } else {
+      // Fall back to interpolation method
+      const sortedReadings = [...readings].sort((a, b) =>
+        new Date(a.date).getTime() - new Date(b.date).getTime()
+      )
+      const weekStartMileage = getMileageAtDate(sortedReadings, weekStart, leaseStart)
+      const endDate = isCurrentWeek ? today : weekEnd
+      const weekEndMileage = getMileageAtDate(sortedReadings, endDate, leaseStart)
+      usedThisWeek = Math.max(0, weekEndMileage - weekStartMileage)
+    }
 
-    // Get mileage at start of week
-    const weekStartMileage = getMileageAtDate(sortedReadings, weekStart, leaseStart)
-
-    // Get mileage at end of week (or current date if it's the current week)
-    const endDate = isCurrentWeek ? today : weekEnd
-    const weekEndMileage = getMileageAtDate(sortedReadings, endDate, leaseStart)
-
-    const usedThisWeek = Math.max(0, weekEndMileage - weekStartMileage)
-    const remainingThisWeek = Math.max(0, weeklyBudget - usedThisWeek)
+    const remainingThisWeek = weeklyBudget - usedThisWeek
 
     // Calculate days into the week
     const daysIntoWeek = isCurrentWeek
@@ -199,6 +220,57 @@ export default function WeeklyPage() {
     }
 
     return 0
+  }
+
+  const calculateDailyUsage = (
+    readings: MileageReading[],
+    weekStart: Date,
+    weekEnd: Date,
+    leaseStart: Date
+  ): DailyUsage[] => {
+    const sortedReadings = [...readings].sort((a, b) =>
+      new Date(a.date).getTime() - new Date(b.date).getTime()
+    )
+    const today = new Date()
+    const dailyData: DailyUsage[] = []
+
+    // Generate data for each day of the week (Mon-Sun)
+    for (let i = 0; i < 7; i++) {
+      const currentDay = addDays(weekStart, i)
+      const nextDay = addDays(currentDay, 1)
+      const currentDayIsToday = isToday(currentDay)
+      const currentDayIsFuture = isAfter(currentDay, today)
+      const currentDayStr = format(currentDay, 'yyyy-MM-dd')
+      const nextDayStr = format(nextDay, 'yyyy-MM-dd')
+
+      // Check if we have actual readings for this day or next day
+      const currentReading = sortedReadings.find(r => r.date === currentDayStr)
+      const nextReading = sortedReadings.find(r => r.date === nextDayStr)
+
+      let usage = 0
+
+      if (!currentDayIsFuture) {
+        if (currentReading && nextReading) {
+          // We have readings for both days - use actual difference
+          usage = Math.max(0, nextReading.mileage - currentReading.mileage)
+        } else {
+          // Fall back to interpolation
+          const startMileage = getMileageAtDate(sortedReadings, currentDay, leaseStart)
+          const endMileage = getMileageAtDate(sortedReadings, nextDay, leaseStart)
+          usage = Math.max(0, endMileage - startMileage)
+        }
+      }
+
+      dailyData.push({
+        date: currentDay,
+        usage,
+        dayName: format(currentDay, 'EEE'),
+        isToday: currentDayIsToday,
+        isFuture: currentDayIsFuture
+      })
+    }
+
+    return dailyData
   }
 
   const handleAddReading = async (date: string, mileage: number, note?: string) => {
@@ -438,6 +510,17 @@ export default function WeeklyPage() {
             </div>
           )}
         </div>
+
+        {/* Weekly Chart */}
+        {dailyUsage.length > 0 && (
+          <WeeklyChart
+            dailyUsage={dailyUsage}
+            dailyBudget={weeklyStats.dailyBudget}
+            weekStart={weeklyStats.weekStart}
+            weeklyBudget={weeklyStats.weeklyBudget}
+            totalUsedThisWeek={weeklyStats.usedThisWeek}
+          />
+        )}
 
       </div>
 

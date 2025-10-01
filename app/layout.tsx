@@ -2,7 +2,6 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import ThemeProvider from './components/ThemeProvider'
-import PWAInstaller from './components/PWAInstaller'
 import { AuthProvider } from './contexts/AuthContext'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -10,21 +9,10 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
   title: 'Lease Tracker',
   description: 'Track your vehicle lease mileage and stay within limits',
-  manifest: '/manifest.json',
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'default',
-    title: 'Lease Tracker',
-  },
   icons: {
     icon: [
       { url: '/favicon.ico' },
       { url: '/favicon.svg', type: 'image/svg+xml' },
-      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
-    ],
-    apple: [
-      { url: '/icon-180.png', sizes: '180x180', type: 'image/png' },
     ],
   },
 }
@@ -51,7 +39,6 @@ export default function RootLayout({
             {children}
           </AuthProvider>
         </ThemeProvider>
-        <PWAInstaller />
       </body>
     </html>
   )
