@@ -21,6 +21,7 @@ import {
 import Navigation from '../components/Navigation'
 import Modal from '../components/Modal'
 import ReadingForm from '../components/ReadingForm'
+import TripEntryForm from '../components/TripEntryForm'
 import LoginForm from '../components/LoginForm'
 import WeeklyChart from '../components/WeeklyChart'
 import { ChevronLeft, ChevronRight, Calendar, TrendingUp, TrendingDown } from 'lucide-react'
@@ -57,6 +58,7 @@ export default function WeeklyPage() {
   const [currentWeek, setCurrentWeek] = useState(new Date())
   const [weeklyStats, setWeeklyStats] = useState<WeeklyStats | null>(null)
   const [dailyUsage, setDailyUsage] = useState<DailyUsage[]>([])
+  const [entryMode, setEntryMode] = useState<'manual' | 'trip'>('manual')
   const { isAuthenticated, token, isLoading: authLoading } = useAuth()
 
   useEffect(() => {
@@ -237,28 +239,32 @@ export default function WeeklyPage() {
     // Generate data for each day of the week (Mon-Sun)
     for (let i = 0; i < 7; i++) {
       const currentDay = addDays(weekStart, i)
-      const nextDay = addDays(currentDay, 1)
+      const prevDay = addDays(currentDay, -1)
       const currentDayIsToday = isToday(currentDay)
       const currentDayIsFuture = isAfter(currentDay, today)
       const currentDayStr = format(currentDay, 'yyyy-MM-dd')
-      const nextDayStr = format(nextDay, 'yyyy-MM-dd')
+      const prevDayStr = format(prevDay, 'yyyy-MM-dd')
 
-      // Check if we have actual readings for this day or next day
-      const currentReading = sortedReadings.find(r => r.date === currentDayStr)
-      const nextReading = sortedReadings.find(r => r.date === nextDayStr)
+      // Get ALL readings for current day and previous day (for two-reading model support)
+      const currentDayReadings = sortedReadings.filter(r => r.date === currentDayStr)
+      const prevDayReadings = sortedReadings.filter(r => r.date === prevDayStr)
 
       let usage = 0
 
       if (!currentDayIsFuture) {
-        if (currentReading && nextReading) {
-          // We have readings for both days - use actual difference
-          usage = Math.max(0, nextReading.mileage - currentReading.mileage)
-        } else {
-          // Fall back to interpolation
-          const startMileage = getMileageAtDate(sortedReadings, currentDay, leaseStart)
-          const endMileage = getMileageAtDate(sortedReadings, nextDay, leaseStart)
-          usage = Math.max(0, endMileage - startMileage)
-        }
+        // Calculate usage as: (end of current day) - (end of previous day)
+
+        // Get the last reading of current day (highest mileage) - this is the odometer at END of day
+        const currentDayEnd = currentDayReadings.length > 0
+          ? Math.max(...currentDayReadings.map(r => r.mileage))
+          : getMileageAtDate(sortedReadings, currentDay, leaseStart)
+
+        // Get the last reading of previous day (highest mileage) - this is the odometer at START of current day
+        const currentDayStart = prevDayReadings.length > 0
+          ? Math.max(...prevDayReadings.map(r => r.mileage))
+          : getMileageAtDate(sortedReadings, prevDay, leaseStart)
+
+        usage = Math.max(0, currentDayEnd - currentDayStart)
       }
 
       dailyData.push({
@@ -526,13 +532,52 @@ export default function WeeklyPage() {
 
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title="Add Kilometer Reading"
+        onClose={() => {
+          setIsModalOpen(false)
+          setEntryMode('manual')
+        }}
+        title="Add Entry"
       >
-        <ReadingForm
-          onSubmit={handleAddReading}
-          readings={readings}
-        />
+        {/* Entry Mode Tabs */}
+        <div className="flex gap-2 mb-6 bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
+          <button
+            onClick={() => setEntryMode('manual')}
+            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+              entryMode === 'manual'
+                ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+            }`}
+          >
+            Manual Reading
+          </button>
+          <button
+            onClick={() => setEntryMode('trip')}
+            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+              entryMode === 'trip'
+                ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+            }`}
+          >
+            Add Trip
+          </button>
+        </div>
+
+        {/* Conditional Form Rendering */}
+        {entryMode === 'manual' ? (
+          <ReadingForm
+            onSubmit={handleAddReading}
+            readings={readings}
+          />
+        ) : (
+          <TripEntryForm
+            authToken={token || ''}
+            onTripCreated={() => {
+              fetchData()
+              setIsModalOpen(false)
+              setEntryMode('manual')
+            }}
+          />
+        )}
       </Modal>
 
       <Modal

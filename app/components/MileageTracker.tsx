@@ -7,6 +7,7 @@ import { createAuthHeaders } from '@/lib/auth'
 import { format, parseISO } from 'date-fns'
 import Dashboard from './Dashboard'
 import ReadingForm from './ReadingForm'
+import TripEntryForm from './TripEntryForm'
 import Modal from './Modal'
 import Navigation from './Navigation'
 import LoginForm from './LoginForm'
@@ -28,6 +29,7 @@ export default function MileageTracker() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [includePreliminary, setIncludePreliminary] = useState(true)
   const [viewMode, setViewMode] = useState<'total' | 'year1' | 'year2' | 'year3'>('total')
+  const [entryMode, setEntryMode] = useState<'manual' | 'trip'>('manual')
   const { isAuthenticated, token, isLoading: authLoading } = useAuth()
 
   useEffect(() => {
@@ -271,13 +273,52 @@ export default function MileageTracker() {
 
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title="Add Kilometer Reading"
+        onClose={() => {
+          setIsModalOpen(false)
+          setEntryMode('manual') // Reset to manual when closing
+        }}
+        title="Add Entry"
       >
-        <ReadingForm
-          onSubmit={handleAddReading}
-          readings={readings}
-        />
+        {/* Entry Mode Tabs */}
+        <div className="flex gap-2 mb-6 bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
+          <button
+            onClick={() => setEntryMode('manual')}
+            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+              entryMode === 'manual'
+                ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+            }`}
+          >
+            Manual Reading
+          </button>
+          <button
+            onClick={() => setEntryMode('trip')}
+            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+              entryMode === 'trip'
+                ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+            }`}
+          >
+            Add Trip
+          </button>
+        </div>
+
+        {/* Conditional Form Rendering */}
+        {entryMode === 'manual' ? (
+          <ReadingForm
+            onSubmit={handleAddReading}
+            readings={readings}
+          />
+        ) : (
+          <TripEntryForm
+            authToken={token || ''}
+            onTripCreated={() => {
+              fetchData()
+              setIsModalOpen(false)
+              setEntryMode('manual')
+            }}
+          />
+        )}
       </Modal>
 
       <Modal

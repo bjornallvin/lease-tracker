@@ -61,7 +61,7 @@ export default function ReadingForm({ onSubmit, readings = [] }: ReadingFormProp
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const mileageNum = parseInt(mileage)
+    const mileageNum = parseFloat(mileage)
 
     const error = validateMileage(date, mileageNum, time)
     if (error) {
@@ -97,7 +97,7 @@ export default function ReadingForm({ onSubmit, readings = [] }: ReadingFormProp
     setMileage(newMileage)
     setValidationError('')
     if (newMileage) {
-      const error = validateMileage(date, parseInt(newMileage), time)
+      const error = validateMileage(date, parseFloat(newMileage), time)
       if (error) setValidationError(error)
     }
   }
@@ -184,6 +184,7 @@ export default function ReadingForm({ onSubmit, readings = [] }: ReadingFormProp
           value={mileage}
           onChange={(e) => handleMileageChange(e.target.value)}
           min={0}
+          step="0.1"
           required
           placeholder={suggestedMax ? `${suggestedMin} - ${suggestedMax} km` : `Minimum: ${suggestedMin} km`}
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
