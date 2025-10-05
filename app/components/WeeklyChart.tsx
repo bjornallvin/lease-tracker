@@ -97,13 +97,15 @@ export default function WeeklyChart({ dailyUsage, dailyBudget, weekStart, weekly
         }),
         backgroundColor: dailyUsage.map(d => {
           if (d.isFuture) return 'rgba(156, 163, 175, 0.3)'
-          if (d.isToday) return 'rgb(59, 130, 246)'
-          return d.usage > dailyBudget ? 'rgb(239, 68, 68)' : 'rgb(59, 130, 246)'
+          // Check budget BEFORE checking isToday so over-budget days are always red
+          if (d.usage > dailyBudget) return 'rgb(239, 68, 68)'
+          return 'rgb(59, 130, 246)'
         }),
         borderColor: dailyUsage.map(d => {
           if (d.isFuture) return 'rgba(156, 163, 175, 0.5)'
-          if (d.isToday) return 'rgb(37, 99, 235)'
-          return d.usage > dailyBudget ? 'rgb(220, 38, 38)' : 'rgb(37, 99, 235)'
+          // Check budget BEFORE checking isToday so over-budget days are always red
+          if (d.usage > dailyBudget) return 'rgb(220, 38, 38)'
+          return 'rgb(37, 99, 235)'
         }),
         borderWidth: 2,
         borderRadius: 4,

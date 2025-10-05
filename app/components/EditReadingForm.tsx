@@ -14,10 +14,22 @@ interface EditReadingFormProps {
 }
 
 export default function EditReadingForm({ reading, readings, onSubmit, onCancel }: EditReadingFormProps) {
+  // Check if this is a trip-generated reading
+  const isTripReading = reading.note?.startsWith('TRIP: ') ?? false
+
+  // Strip "TRIP: " prefix from note for display in edit form
+  const getDisplayNote = (note: string | undefined): string => {
+    if (!note) return ''
+    if (note.startsWith('TRIP: ')) {
+      return note.substring(6) // Remove "TRIP: " prefix
+    }
+    return note
+  }
+
   const [date, setDate] = useState(reading.date)
   const [time, setTime] = useState(reading.time || '')
   const [mileage, setMileage] = useState(reading.mileage.toString())
-  const [note, setNote] = useState(reading.note || '')
+  const [note, setNote] = useState(getDisplayNote(reading.note))
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [validationError, setValidationError] = useState('')
 
@@ -66,7 +78,7 @@ export default function EditReadingForm({ reading, readings, onSubmit, onCancel 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const mileageNum = parseInt(mileage)
+    const mileageNum = parseFloat(mileage)
 
     const error = validateMileage(date, mileageNum, time)
     if (error) {
@@ -77,7 +89,14 @@ export default function EditReadingForm({ reading, readings, onSubmit, onCancel 
     setIsSubmitting(true)
     setValidationError('')
     try {
-      await onSubmit(reading.id, date, mileageNum, note || undefined, time || undefined)
+      // If this was originally a trip reading, add the "TRIP: " prefix back
+      const finalNote = isTripReading && note
+        ? `TRIP: ${note}`
+        : isTripReading && !note
+          ? 'TRIP: '
+          : note || undefined
+
+      await onSubmit(reading.id, date, mileageNum, finalNote, time || undefined)
     } catch (error) {
       console.error('Error updating reading:', error)
     } finally {
@@ -98,7 +117,7 @@ export default function EditReadingForm({ reading, readings, onSubmit, onCancel 
     setMileage(newMileage)
     setValidationError('')
     if (newMileage) {
-      const error = validateMileage(date, parseInt(newMileage), time)
+      const error = validateMileage(date, parseFloat(newMileage), time)
       if (error) setValidationError(error)
     }
   }
@@ -187,6 +206,7 @@ export default function EditReadingForm({ reading, readings, onSubmit, onCancel 
           value={mileage}
           onChange={(e) => handleMileageChange(e.target.value)}
           min={0}
+          step="0.1"
           required
           placeholder={suggestedMax ? `${suggestedMin} - ${suggestedMax} km` : `Minimum: ${suggestedMin} km`}
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"

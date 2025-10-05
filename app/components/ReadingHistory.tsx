@@ -2,8 +2,22 @@
 
 import { MileageReading } from '@/lib/types'
 import { formatMileage, formatDate, formatTime, isReadingInFuture, compareReadings, getTimeDifferenceInDays } from '@/lib/utils'
-import { Trash2, Edit } from 'lucide-react'
+import { Trash2, Edit, Car } from 'lucide-react'
 import { differenceInDays, parseISO } from 'date-fns'
+
+// Helper to check if reading is trip-generated
+function isTripGenerated(reading: MileageReading): boolean {
+  return reading.note?.startsWith('TRIP: ') ?? false
+}
+
+// Helper to get display note (strips "TRIP: " prefix from trip-generated readings)
+function getDisplayNote(reading: MileageReading): string {
+  if (!reading.note) return ''
+  if (reading.note.startsWith('TRIP: ')) {
+    return reading.note.substring(6) // Remove "TRIP: " prefix (6 characters)
+  }
+  return reading.note
+}
 
 interface ReadingHistoryProps {
   readings: MileageReading[]
@@ -93,7 +107,17 @@ export default function ReadingHistory({ readings, onDelete, onEdit, isAuthentic
                   <td className="py-3 text-sm text-gray-600 dark:text-gray-400">
                     {avgRate > 0 ? `${avgRate.toLocaleString('sv-SE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km/day` : '-'}
                   </td>
-                  <td className="py-3 text-sm text-gray-600 dark:text-gray-400">{reading.note}</td>
+                  <td className="py-3 text-sm text-gray-600 dark:text-gray-400">
+                    <div className="flex items-center gap-2">
+                      {isTripGenerated(reading) && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-medium">
+                          <Car className="h-3 w-3" />
+                          Trip
+                        </span>
+                      )}
+                      <span>{getDisplayNote(reading)}</span>
+                    </div>
+                  </td>
                   <td className="py-3">
                     {isAuthenticated ? (
                       <div className="flex items-center gap-2">
@@ -210,10 +234,20 @@ export default function ReadingHistory({ readings, onDelete, onEdit, isAuthentic
                     <span className="ml-1 font-medium">{avgRate.toLocaleString('sv-SE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km/day</span>
                   </div>
                 )}
-                {reading.note && (
+                {(reading.note || isTripGenerated(reading)) && (
                   <div className="col-span-2">
                     <span className="text-gray-500 dark:text-gray-400">Note:</span>
-                    <span className="ml-1 font-medium">{reading.note}</span>
+                    <div className="mt-1 flex items-center gap-2 flex-wrap">
+                      {isTripGenerated(reading) && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-medium">
+                          <Car className="h-3 w-3" />
+                          Trip
+                        </span>
+                      )}
+                      {getDisplayNote(reading) && (
+                        <span className="font-medium">{getDisplayNote(reading)}</span>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
