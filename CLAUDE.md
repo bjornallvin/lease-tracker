@@ -19,6 +19,10 @@
 - NEVER run development servers (npm run dev, etc.)
 - User will handle starting/stopping servers
 
+## Locale and Formatting
+- Always use Swedish number format: space as thousands separator (e.g., 4 790 instead of 4,790)
+- Always use Swedish date format: YYYY-MM-DD
+
 ## PWA Setup
 - PWA functionality has been implemented with manifest.json and service worker
 - App icons have been created and are ready for installation
