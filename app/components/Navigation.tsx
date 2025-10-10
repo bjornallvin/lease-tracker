@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, List, Plus, Calendar, Menu, X, Lock, LogOut } from 'lucide-react'
+import { Home, List, Plus, Calendar, Menu, X, Lock, LogOut, Settings } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -53,6 +53,7 @@ export default function Navigation({ onAddReading }: NavigationProps) {
     { href: '/', icon: Home, label: 'Dashboard' },
     { href: '/weekly', icon: Calendar, label: 'Weekly' },
     { href: '/history', icon: List, label: 'Readings' },
+    { href: '/settings', icon: Settings, label: 'Settings' },
   ]
 
   return (

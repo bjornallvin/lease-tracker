@@ -345,16 +345,61 @@ export function generateChartData(
     }
   }
 
-  // Create data points - use actual readings and add monthly grid for projections
+  // Create data points - use only last reading per month to reduce clutter
   const dataPoints: Date[] = []
 
-  // Add all actual reading dates within the view period
+  // Group readings by month and get only the last reading of each month
+  const readingsByMonth = new Map<string, MileageReading>()
+
   sortedReadings.forEach(reading => {
     const readingDate = parseISO(reading.date)
     if (!isBefore(readingDate, viewStartDate) && !isAfter(readingDate, viewEndDate)) {
-      dataPoints.push(readingDate)
+      const monthKey = format(readingDate, 'yyyy-MM') // Group by year-month
+
+      // Keep only the latest reading for this month
+      const existing = readingsByMonth.get(monthKey)
+      if (!existing || isAfter(readingDate, parseISO(existing.date))) {
+        readingsByMonth.set(monthKey, reading)
+      }
     }
   })
+
+  // Add the last reading from each month
+  readingsByMonth.forEach(reading => {
+    dataPoints.push(parseISO(reading.date))
+  })
+
+  // Also add the first reading within the view period if it exists
+  const firstReading = sortedReadings.find(reading => {
+    const readingDate = parseISO(reading.date)
+    return !isBefore(readingDate, viewStartDate) && !isAfter(readingDate, viewEndDate)
+  })
+  if (firstReading) {
+    const firstDate = parseISO(firstReading.date)
+    const alreadyIncluded = dataPoints.some(d => isSameDay(d, firstDate))
+    if (!alreadyIncluded) {
+      dataPoints.push(firstDate)
+    }
+  }
+
+  // Also add the latest reading of current month if it's not already included
+  const currentMonth = format(today, 'yyyy-MM')
+  const latestReading = sortedReadings.length > 0 ? sortedReadings[sortedReadings.length - 1] : null
+  if (latestReading) {
+    const latestDate = parseISO(latestReading.date)
+    const latestMonth = format(latestDate, 'yyyy-MM')
+
+    // If latest reading is in current month and within view period, ensure it's included
+    if (latestMonth === currentMonth &&
+        !isBefore(latestDate, viewStartDate) &&
+        !isAfter(latestDate, viewEndDate)) {
+      // Check if it's not already in dataPoints
+      const alreadyIncluded = dataPoints.some(d => isSameDay(d, latestDate))
+      if (!alreadyIncluded) {
+        dataPoints.push(latestDate)
+      }
+    }
+  }
 
   // Add start and end dates if not present
   if (!sortedReadings.some(r => r.date === format(viewStartDate, 'yyyy-MM-dd'))) {

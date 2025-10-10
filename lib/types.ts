@@ -4,6 +4,7 @@ export interface LeaseInfo {
   endDate: string
   annualLimit: number
   totalLimit: number
+  overageCostPerKm?: number  // Cost per kilometer over the limit
   createdAt: string
   updatedAt: string
 }

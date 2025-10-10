@@ -184,7 +184,12 @@ export default function MileageTracker() {
         </div>
 
         <div className="space-y-6">
-          <Dashboard stats={stats} totalLimit={leaseInfo.totalLimit} referenceDate={selectedDate || undefined} />
+          <Dashboard
+            stats={stats}
+            totalLimit={leaseInfo.totalLimit}
+            referenceDate={selectedDate || undefined}
+            overageCostPerKm={leaseInfo.overageCostPerKm}
+          />
 
           <div className="hidden md:block bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between mb-4">

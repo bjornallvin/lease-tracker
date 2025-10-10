@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { redis, LEASE_KEY } from '@/lib/redis'
 import { LeaseInfo } from '@/lib/types'
+import { verifyAuth } from '@/lib/auth'
 
 export async function GET() {
   try {
@@ -73,6 +74,14 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    // Check authentication
+    if (!verifyAuth(request)) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
     if (!redis) {
       return NextResponse.json(
         { error: 'Database not configured. Please set up Upstash Redis.' },

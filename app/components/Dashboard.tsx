@@ -8,10 +8,15 @@ interface DashboardProps {
   stats: CalculatedStats
   totalLimit: number
   referenceDate?: string
+  overageCostPerKm?: number
 }
 
-export default function Dashboard({ stats, totalLimit, referenceDate }: DashboardProps) {
+export default function Dashboard({ stats, totalLimit, referenceDate, overageCostPerKm }: DashboardProps) {
   const dateLabel = referenceDate || new Date().toLocaleDateString('sv-SE')
+
+  // Calculate overage cost if projected total exceeds limit
+  const overage = Math.max(0, stats.projectedTotal - totalLimit)
+  const overageCost = overageCostPerKm ? overage * overageCostPerKm : null
 
   return (
     <div className="space-y-4">
@@ -101,6 +106,11 @@ export default function Dashboard({ stats, totalLimit, referenceDate }: Dashboar
               <p className={`text-xs ${stats.projectedTotal > totalLimit ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
                 {stats.projectedTotal > totalLimit ? '+' : ''}{formatMileage(stats.projectedTotal - totalLimit)} km from limit
               </p>
+              {overageCost !== null && overage > 0 && (
+                <p className="text-xs font-semibold text-red-600 dark:text-red-400">
+                  Estimated cost: {overageCost.toLocaleString('sv-SE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} SEK
+                </p>
+              )}
             </div>
           </div>
           <TrendingUp className="h-8 w-8 text-purple-500" />
