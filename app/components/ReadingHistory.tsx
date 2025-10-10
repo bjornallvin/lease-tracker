@@ -5,9 +5,14 @@ import { formatMileage, formatDate, formatTime, isReadingInFuture, compareReadin
 import { Trash2, Edit, Car } from 'lucide-react'
 import { differenceInDays, parseISO } from 'date-fns'
 
-// Helper to check if reading is trip-generated
+// Helper to check if reading is trip-generated (END reading)
 function isTripGenerated(reading: MileageReading): boolean {
   return reading.note?.startsWith('TRIP: ') ?? false
+}
+
+// Helper to check if reading is a trip START reading
+function isTripStart(reading: MileageReading): boolean {
+  return reading.id?.endsWith('-start') ?? false
 }
 
 // Helper to get display note (strips "TRIP: " prefix from trip-generated readings)
@@ -109,6 +114,12 @@ export default function ReadingHistory({ readings, onDelete, onEdit, isAuthentic
                   </td>
                   <td className="py-3 text-sm text-gray-600 dark:text-gray-400">
                     <div className="flex items-center gap-2">
+                      {isTripStart(reading) && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium">
+                          <Car className="h-3 w-3" />
+                          Trip Start (hidden)
+                        </span>
+                      )}
                       {isTripGenerated(reading) && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-medium">
                           <Car className="h-3 w-3" />
@@ -234,10 +245,16 @@ export default function ReadingHistory({ readings, onDelete, onEdit, isAuthentic
                     <span className="ml-1 font-medium">{avgRate.toLocaleString('sv-SE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km/day</span>
                   </div>
                 )}
-                {(reading.note || isTripGenerated(reading)) && (
+                {(reading.note || isTripGenerated(reading) || isTripStart(reading)) && (
                   <div className="col-span-2">
                     <span className="text-gray-500 dark:text-gray-400">Note:</span>
                     <div className="mt-1 flex items-center gap-2 flex-wrap">
+                      {isTripStart(reading) && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium">
+                          <Car className="h-3 w-3" />
+                          Trip Start (hidden)
+                        </span>
+                      )}
                       {isTripGenerated(reading) && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-medium">
                           <Car className="h-3 w-3" />

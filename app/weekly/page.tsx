@@ -260,9 +260,24 @@ export default function WeeklyPage() {
           : getMileageAtDate(sortedReadings, currentDay, leaseStart)
 
         // Get the last reading of previous day (highest mileage) - this is the odometer at START of current day
-        const currentDayStart = prevDayReadings.length > 0
-          ? Math.max(...prevDayReadings.map(r => r.mileage))
-          : getMileageAtDate(sortedReadings, prevDay, leaseStart)
+        let currentDayStart: number
+        if (prevDayReadings.length > 0) {
+          // Previous day has readings - use the highest mileage
+          currentDayStart = Math.max(...prevDayReadings.map(r => r.mileage))
+        } else {
+          // Previous day has NO readings - use the most recent reading BEFORE previous day
+          // Don't interpolate - just use the last known odometer reading
+          const readingsBeforePrevDay = sortedReadings.filter(r => r.date < prevDayStr)
+          if (readingsBeforePrevDay.length > 0) {
+            // Get the highest mileage from the most recent date before previous day
+            const lastDateBeforePrevDay = readingsBeforePrevDay[readingsBeforePrevDay.length - 1].date
+            const readingsOnLastDate = readingsBeforePrevDay.filter(r => r.date === lastDateBeforePrevDay)
+            currentDayStart = Math.max(...readingsOnLastDate.map(r => r.mileage))
+          } else {
+            // No readings before previous day - use lease start
+            currentDayStart = 0
+          }
+        }
 
         usage = Math.max(0, currentDayEnd - currentDayStart)
       }
@@ -526,6 +541,109 @@ export default function WeeklyPage() {
             weeklyBudget={weeklyStats.weeklyBudget}
             totalUsedThisWeek={weeklyStats.usedThisWeek}
           />
+        )}
+
+        {/* Daily Breakdown Table */}
+        {dailyUsage.length > 0 && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700 mt-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Daily Breakdown</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 dark:border-gray-700">
+                    <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-white">Day</th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-white">Date</th>
+                    <th className="text-right py-3 px-4 font-semibold text-gray-900 dark:text-white">KM Driven</th>
+                    <th className="text-right py-3 px-4 font-semibold text-gray-900 dark:text-white">vs Budget</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dailyUsage.map((day, index) => {
+                    const difference = day.usage - weeklyStats.dailyBudget
+                    const isOverBudget = difference > 0
+                    const isUnderBudget = difference < 0
+
+                    return (
+                      <tr
+                        key={index}
+                        className={`border-b border-gray-100 dark:border-gray-700 ${
+                          day.isToday ? 'bg-blue-50 dark:bg-blue-900/10' : ''
+                        }`}
+                      >
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-900 dark:text-white font-medium">
+                              {day.dayName}
+                            </span>
+                            {day.isToday && (
+                              <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded">
+                                Today
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-gray-600 dark:text-gray-400">
+                          {format(day.date, 'yyyy-MM-dd')}
+                        </td>
+                        <td className={`py-3 px-4 text-right font-medium ${
+                          day.isFuture
+                            ? 'text-gray-400 dark:text-gray-500'
+                            : day.usage === 0
+                              ? 'text-gray-500 dark:text-gray-400'
+                              : isOverBudget
+                                ? 'text-red-600 dark:text-red-400'
+                                : 'text-gray-900 dark:text-white'
+                        }`}>
+                          {day.isFuture
+                            ? '-'
+                            : `${Math.round(day.usage).toLocaleString('sv-SE')} km`
+                          }
+                        </td>
+                        <td className={`py-3 px-4 text-right text-sm ${
+                          day.isFuture
+                            ? 'text-gray-400 dark:text-gray-500'
+                            : isOverBudget
+                              ? 'text-red-600 dark:text-red-400'
+                              : isUnderBudget
+                                ? 'text-green-600 dark:text-green-400'
+                                : 'text-gray-600 dark:text-gray-400'
+                        }`}>
+                          {day.isFuture
+                            ? '-'
+                            : day.usage === 0
+                              ? '-'
+                              : isOverBudget
+                                ? `+${Math.round(difference).toLocaleString('sv-SE')} km`
+                                : isUnderBudget
+                                  ? `${Math.round(difference).toLocaleString('sv-SE')} km`
+                                  : 'On budget'
+                          }
+                        </td>
+                      </tr>
+                    )
+                  })}
+                  <tr className="border-t-2 border-gray-300 dark:border-gray-600 font-semibold">
+                    <td className="py-3 px-4 text-gray-900 dark:text-white" colSpan={2}>
+                      Total
+                    </td>
+                    <td className="py-3 px-4 text-right text-gray-900 dark:text-white">
+                      {Math.round(weeklyStats.usedThisWeek).toLocaleString('sv-SE')} km
+                    </td>
+                    <td className={`py-3 px-4 text-right ${
+                      weeklyStats.usedThisWeek > weeklyStats.weeklyBudget
+                        ? 'text-red-600 dark:text-red-400'
+                        : 'text-green-600 dark:text-green-400'
+                    }`}>
+                      {weeklyStats.usedThisWeek > weeklyStats.weeklyBudget
+                        ? `+${Math.round(weeklyStats.usedThisWeek - weeklyStats.weeklyBudget).toLocaleString('sv-SE')} km`
+                        : `${Math.round(weeklyStats.usedThisWeek - weeklyStats.weeklyBudget).toLocaleString('sv-SE')} km`
+                      }
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
 
       </div>
